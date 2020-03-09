@@ -1,7 +1,8 @@
-const fs = require('fs')
-const iconv = require("iconv-lite")
+const ID3Frame = require('./src/ID3Tag');
+const fs = require('fs');
+const iconv = require("iconv-lite");
 
-module.exports = new NodeID3
+module.exports = new NodeID3;
 
 /*
 **  Used specification: http://id3.org/id3v2.3.0
@@ -291,30 +292,27 @@ NodeID3.prototype.createBuffersFromTags = function(tags) {
 **  options     => Object
 **  fn          => function (for asynchronous usage)
 */
-NodeID3.prototype.read = function(filebuffer, options, fn) {
-    if(!options || typeof options === 'function') {
-        fn = fn || options
-        options = {}
-    }
+NodeID3.prototype.read = function(filebuffer, fn) {
+    let frame = new ID3Frame();
     if(!fn || typeof fn !== 'function') {
         if(typeof filebuffer === "string" || filebuffer instanceof String) {
             filebuffer = fs.readFileSync(filebuffer)
         }
-        let tags = this.getTagsFromBuffer(filebuffer, options)
-        return tags
+        return frame.load(filebuffer).getTags();
     } else {
         if(typeof filebuffer === "string" || filebuffer instanceof String) {
             fs.readFile(filebuffer, function(err, data) {
                 if(err) {
-                    fn(err, null)
+                    fn(err, null);
                 } else {
-                    let tags = this.getTagsFromBuffer(data, options)
-                    fn(null, tags)
+                    fn(null, frame.load(data).getTags());
                 }
             }.bind(this))
+        } else {
+            fn(null, frame.load(filebuffer).getTags());
         }
     }
-}
+};
 
 /*
 **  Update ID3-Tags from passed buffer/filepath

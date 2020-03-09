@@ -1,0 +1,1 @@
+function TextFrame(name, size) {}

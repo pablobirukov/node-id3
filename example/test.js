@@ -1,5 +1,6 @@
-const nodeID3 = require('../index.js')
-const fs = require('fs')
+const nodeID3 = require('../index.js');
+const ID3Tag = require('../src/ID3Tag');
+const fs = require('fs');
 
 
 //tags.image is the path to the image (only png/jpeg files allowed)
@@ -49,10 +50,35 @@ const tags = {
   }]
 }
 
-let success = nodeID3.write(tags, "./example/test.mp3");
+let fileBuffer = fs.readFileSync('./example/testcreate.mp3');
+
+console.log(nodeID3.read('./example/testcreate.mp3'));
+nodeID3.read('./example/testcreate.mp3', (err, tags) => {
+    console.log(tags);
+});
+
+console.log(nodeID3.read(fileBuffer));
+nodeID3.read(fileBuffer, (err, tags) => {
+  console.log(tags);
+});
+
+/*let frame = (new ID3Frame()).Load(fs.readFileSync('./example/testcreate.mp3'));
+console.log(frame ? frame.length : 0);
+console.log(frame);
+
+let buffer = frame.createBuffer();
+if(buffer) {
+    console.log(buffer);
+    console.log(buffer.length);
+} else {
+    console.log("NOPE");
+}
+
+/*let success = nodeID3.create(tags);
+require('fs').writeFileSync('./example/testcreate.mp3', success, 'binary');
 console.log(success);
 
-console.log(nodeID3.read("./example/test.mp3").chapter[0].tags)
+//console.log(nodeID3.read("./example/test.mp3").chapter[0].tags)
 
 /*nodeID3.create(tags, function(frame) {
   console.log(frame)
