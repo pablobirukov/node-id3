@@ -1,3 +1,6 @@
+const iconv = require("iconv-lite");
+const ID3Util = require("./ID3Util");
+
 module.exports = ID3Frame;
 
 const ID3V2_2_IDENTIFIER_SIZE = 3;
@@ -11,7 +14,7 @@ function ID3Frame(id3Tag, identifier, size, body) {
     this.body = body;
 }
 
-ID3Frame.prototype.load = function(buffer) {
+ID3Frame.prototype.parse = function(buffer) {
     if(!buffer || buffer.length < 10 || !this.id3Tag) {
         return null;
     }
@@ -38,4 +41,19 @@ ID3Frame.prototype.load = function(buffer) {
     }
 
     return this;
+};
+
+function TextInformationFrame(encodingByte, text) {
+    this.encoding = encodingByte;
+    this.text = iconv.decode(text, this.encoding);
+}
+
+TextInformationFrame.prototype.parse = function(body) {
+    this.encoding = body[0];
+    this.text = iconv.decode(body.slice(1), ID3Util.parseEncodingByte(this.encoding));
+    return this;
+};
+
+TextInformationFrame.prototype.create = function() {
+    return iconv.encode(this.text, ID3Util.createEncodingByte(this.encoding));
 };

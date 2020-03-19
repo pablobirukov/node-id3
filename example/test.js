@@ -1,5 +1,4 @@
 const nodeID3 = require('../index.js');
-const ID3Tag = require('../src/ID3Tag');
 const fs = require('fs');
 
 
@@ -48,7 +47,10 @@ const tags = {
       artist: "abcdef222"
     }
   }]
-}
+};
+
+let success = nodeID3.create(tags);
+require('fs').writeFileSync('./example/testcreate.mp3', success, 'binary');
 
 let fileBuffer = fs.readFileSync('./example/testcreate.mp3');
 
@@ -62,7 +64,7 @@ nodeID3.read(fileBuffer, (err, tags) => {
   console.log(tags);
 });
 
-/*let frame = (new ID3Frame()).Load(fs.readFileSync('./example/testcreate.mp3'));
+/*let frame = (new ID3Frame()).parse(fs.readFileSync('./example/testcreate.mp3'));
 console.log(frame ? frame.length : 0);
 console.log(frame);
 

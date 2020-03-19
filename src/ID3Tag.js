@@ -1,5 +1,4 @@
-const fs = require('fs');
-const ID3Frame = require('ID3Frame');
+const ID3Frame = require('./ID3Frame');
 
 module.exports = ID3Tag;
 
@@ -14,7 +13,7 @@ function ID3Tag(version, flags = {}, size, body) {
  *
  * @return {this, null}
  */
-ID3Tag.prototype.load = function(buffer) {
+ID3Tag.prototype.parse = function(buffer) {
     /* Search Buffer for valid ID3 frame */
     let framePosition = -1;
     let frameHeaderValid = false;
@@ -125,7 +124,7 @@ ID3Tag.prototype.getTagFramesFromBody = function() {
 
     let currentPosition = 0;
     while(currentPosition < this.body.length && this.body[currentPosition] !== 0x00) {
-        let currentFrame = (new ID3Frame(this)).load(this.body.slice(currentPosition));
+        let currentFrame = (new ID3Frame(this)).parse(this.body.slice(currentPosition));
         if(currentFrame && currentFrame.body && currentFrame.body.length > 0) {
             //HANDLE THIS STUFF
         }
