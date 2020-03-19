@@ -1,56 +1,60 @@
-const nodeID3 = require('../index.js');
-const fs = require('fs');
+const NodeID3 = require('../index.js');
+const ID3Util = require('../src/ID3Util');
+const assert = require('assert');
+const iconv = require("iconv-lite");
+
+describe('NodeID3', function() {
+  describe('#create()', function() {
+    it('empty tags', function() {
+      assert.equal(NodeID3.create({}).compare(Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), 0);
+    });
+    it('text frames', function() {
+      let tags = {
+        TIT2: "abcdeÜ看板かんばん",
+        album: "nasÖÄkdnasd",
+        notfound: "notfound"
+      };
+      let buffer = NodeID3.create(tags);
+      let titleSize = 10 + 1 + iconv.encode(tags.TIT2, ID3Util.parseEncodingByte(0x01)).length;
+      let albumSize = 10 + 1 + iconv.encode(tags.album, ID3Util.parseEncodingByte(0x01)).length;
+      assert.equal(buffer.length,
+          10 + // ID3 frame header
+          titleSize + // TIT2 header + encoding byte + utf16 bytes + utf16 string
+          albumSize // same as above for album
+      );
+      // Check ID3 header
+      assert.ok(buffer.includes(
+          Buffer.concat([
+              Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00]),
+              Buffer.from(ID3Util.encodeSize(titleSize + albumSize))
+          ])
+      ));
+      // Check TIT2 frame
+      assert.ok(buffer.includes(
+          Buffer.concat([
+              Buffer.from([0x54, 0x49, 0x54, 0x32]),
+              ID3Util.decodeSize(ID3Util.encodeSize(titleSize - 10)),
+              Buffer.from([0x00, 0x00]),
+              Buffer.from([0x01]),
+              iconv.encode(tags.TIT2, ID3Util.parseEncodingByte(0x01))
+          ])
+      ));
+      // Check album frame
+      assert.ok(buffer.includes(
+          Buffer.concat([
+            Buffer.from([0x54, 0x41, 0x4C, 0x42]),
+            ID3Util.decodeSize(ID3Util.encodeSize(albumSize - 10)),
+            Buffer.from([0x00, 0x00]),
+            Buffer.from([0x01]),
+            iconv.encode(tags.album, ID3Util.parseEncodingByte(0x01))
+          ])
+      ));
+    });
+  });
+});
 
 
-//tags.image is the path to the image (only png/jpeg files allowed)
-const tags = {
-  title: "Tomorrow",
-  artist: "Kevin Penkin",
-  album: "asdfd",
-  APIC: "./example/mia_cover.jpg",
-  year: 2017,
-  comment: {
-    language: "eng",
-    text: "some text"
-  },
-  TRCK: "27",
-  TXXX: [{
-    description: "testtt.",
-    value: "ja moin."
-  }, {
-    description: "testtt2.",
-    value: "ja moin2."
-  }, {
-    description: "testtt3.",
-    value: "ja moin3."
-  }],
-  private: [{
-    ownerIdentifier: "AbC",
-    data: "asdoahwdiohawdaw"
-  }, {
-    ownerIdentifier: "AbCSSS",
-    data: Buffer.from([0x01, 0x02, 0x05])
-  }],
-  chapter: [{
-    elementID: "Hey!",
-    startTimeMs: 5000,
-    endTimeMs: 8000,
-    tags: {
-      title: "abcdef",
-      artist: "akshdas"
-    }
-  }, {
-    elementID: "Hey2!",
-    startTimeMs: 225000,
-    endTimeMs: 8465000,
-    tags: {
-      artist: "abcdef222"
-    }
-  }]
-};
-
-let success = nodeID3.create(tags);
-require('fs').writeFileSync('./example/testcreate.mp3', success, 'binary');
+/*let success = nodeID3.create({});
 
 let fileBuffer = fs.readFileSync('./example/testcreate.mp3');
 

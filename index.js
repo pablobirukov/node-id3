@@ -298,18 +298,18 @@ NodeID3.prototype.read = function(filebuffer, fn) {
         if(typeof filebuffer === "string" || filebuffer instanceof String) {
             filebuffer = fs.readFileSync(filebuffer)
         }
-        return frame.load(filebuffer).getTags();
+        return frame.parse(filebuffer).getTags();
     } else {
         if(typeof filebuffer === "string" || filebuffer instanceof String) {
             fs.readFile(filebuffer, function(err, data) {
                 if(err) {
                     fn(err, null);
                 } else {
-                    fn(null, frame.load(data).getTags());
+                    fn(null, frame.parse(data).getTags());
                 }
             }.bind(this))
         } else {
-            fn(null, frame.load(filebuffer).getTags());
+            fn(null, frame.parse(filebuffer).getTags());
         }
     }
 };
