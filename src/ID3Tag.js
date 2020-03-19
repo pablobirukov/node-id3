@@ -1,20 +1,68 @@
-const ID3Frame = require('./ID3Frame');
-const ID3Util = require('./ID3Util');
-
 module.exports = ID3Tag;
 
-function ID3Tag(version, flags = {}, size, body) {
+const ID3Frame = require('./ID3Frame');
+const ID3Util = require('./ID3Util');
+const ID3FrameMapper = require('./ID3FrameMapper');
+
+function ID3Tag(frames = {}, version = 3, flags = {}) {
+    this.frames = frames;
     this.version = version;
     this.flags = flags;
-    this.size = size;
-    this.body = body;
 }
+
+/**
+ * @return {Buffer, null}
+ */
+ID3Tag.prototype.createBuffer = function() {
+    let header = Buffer.alloc(10);
+    header.writeUIntBE(0x494433, 0, 3);
+    header.writeUInt8(this.version, 3);
+    let flagsByte = 0;
+    if(this.flags) {
+        if(this.flags.unsynchronisation) {
+            flagsByte += 128;
+        }
+        if(this.flags.extendedHeader) {
+            flagsByte += 64;
+        }
+        if(this.flags.experimentalIndicator) {
+            flagsByte += 32;
+        }
+        if(this.flags.footerPresent) {
+            flagsByte += 16;
+        }
+    }
+    header.writeUInt8(flagsByte, 5);
+
+    let body = this.framesToBuffer(this.frames);
+
+    header.writeUInt32BE(ID3Util.encodeSize(body.length).readUInt32BE(0), 6);
+    return Buffer.concat([header, body]);
+};
+
+/**
+ *
+ * @return {Buffer}
+ */
+ID3Tag.prototype.framesToBuffer = function(frames = {}) {
+    let frameBuffers = [];
+    Object.keys(frames).forEach(function(key) {
+        let frameIdentifier = ID3FrameMapper.getFrameIdentifier(key);
+        let frameType = ID3FrameMapper.getFrameType(frameIdentifier);
+        if(!frameType) return;
+        let buffer = (new frameType(frames[key], frameIdentifier)).createBuffer();
+        if(buffer) {
+            frameBuffers.push(buffer);
+        }
+    });
+    return Buffer.concat(frameBuffers);
+};
 
 /**
  *
  * @return {this, null}
  */
-ID3Tag.prototype.parse = function(buffer) {
+ID3Tag.prototype.from = function(buffer) {
     /* Search Buffer for valid ID3 frame */
     let framePosition = -1;
     let frameHeaderValid = false;
@@ -31,6 +79,7 @@ ID3Tag.prototype.parse = function(buffer) {
     if(!frameHeaderValid) {
         return null;
     } else {
+        this.header = buffer.slice(framePosition, framePosition + 10);
         this.version = buffer[framePosition + 3];
         let flagByte = buffer[framePosition + 5];
         // Flag bits from 0 - 7
@@ -68,33 +117,6 @@ ID3Tag.prototype.IsValidID3Header = function(buffer) {
     return true;
 };
 
-/**
- * @return {Buffer, null}
- */
-ID3Tag.prototype.createBuffer = function() {
-    let header = Buffer.alloc(10);
-    header.writeUIntBE(0x494433, 0, 3);
-    header.writeUInt8(this.version, 3);
-    let flagsByte = 0;
-    if(this.flags) {
-        if(this.flags.unsynchronisation) {
-            flagsByte += 128;
-        }
-        if(this.flags.extendedHeader) {
-            flagsByte += 64;
-        }
-        if(this.flags.experimentalIndicator) {
-            flagsByte += 32;
-        }
-        if(this.flags.footerPresent) {
-            flagsByte += 16;
-        }
-    }
-    header.writeUInt8(flagsByte, 5);
-    header.writeUInt32BE(ID3Util.encodeSize(this.size).readUInt32BE(0), 6);
-    return Buffer.concat([header, this.body]);
-};
-
 ID3Tag.prototype.getTags = function() {
     return {};
 };
@@ -107,9 +129,11 @@ ID3Tag.prototype.getTagFramesFromBody = function() {
 
     let currentPosition = 0;
     while(currentPosition < this.body.length && this.body[currentPosition] !== 0x00) {
-        let currentFrame = (new ID3Frame(this)).parse(this.body.slice(currentPosition));
+        let currentFrame = (new ID3Frame(this)).from(this.body.slice(currentPosition));
         if(currentFrame && currentFrame.body && currentFrame.body.length > 0) {
-            //HANDLE THIS STUFF
+            if(currentFrame.identifier.startsWith("T")) {
+                //HANDLESTUFF
+            }
         }
     }
     /*

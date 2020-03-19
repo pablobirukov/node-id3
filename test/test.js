@@ -1,58 +1,169 @@
 const NodeID3 = require('../index.js');
 const ID3Util = require('../src/ID3Util');
 const assert = require('assert');
-const iconv = require("iconv-lite");
+const iconv = require('iconv-lite');
+const fs = require('fs');
 
-describe('NodeID3', function() {
-  describe('#create()', function() {
-    it('empty tags', function() {
-      assert.equal(NodeID3.create({}).compare(Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), 0);
+describe('NodeID3', function () {
+    describe('#create()', function () {
+        it('empty tags', function () {
+            assert.equal(NodeID3.create({}).compare(Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])), 0);
+        });
+        it('text frames', function () {
+            let tags = {
+                TIT2: "abcdeÜ看板かんばん",
+                album: "nasÖÄkdnasd",
+                notfound: "notfound"
+            };
+            let buffer = NodeID3.create(tags);
+            let titleSize = 10 + 1 + iconv.encode(tags.TIT2, ID3Util.encodingByteToString(0x01)).length;
+            let albumSize = 10 + 1 + iconv.encode(tags.album, ID3Util.encodingByteToString(0x01)).length;
+            assert.equal(buffer.length,
+                10 + // ID3 frame header
+                titleSize + // TIT2 header + encoding byte + utf16 bytes + utf16 string
+                albumSize // same as above for album
+            );
+            // Check ID3 header
+            assert.ok(buffer.includes(
+                Buffer.concat([
+                    Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00]),
+                    Buffer.from(ID3Util.encodeSize(titleSize + albumSize))
+                ])
+            ));
+            // Check TIT2 frame
+            assert.ok(buffer.includes(
+                Buffer.concat([
+                    Buffer.from([0x54, 0x49, 0x54, 0x32]),
+                    ID3Util.decodeSize(ID3Util.encodeSize(titleSize - 10)),
+                    Buffer.from([0x00, 0x00]),
+                    Buffer.from([0x01]),
+                    iconv.encode(tags.TIT2, ID3Util.encodingByteToString(0x01))
+                ])
+            ));
+            // Check album frame
+            assert.ok(buffer.includes(
+                Buffer.concat([
+                    Buffer.from([0x54, 0x41, 0x4C, 0x42]),
+                    ID3Util.decodeSize(ID3Util.encodeSize(albumSize - 10)),
+                    Buffer.from([0x00, 0x00]),
+                    Buffer.from([0x01]),
+                    iconv.encode(tags.album, ID3Util.encodingByteToString(0x01))
+                ])
+            ));
+        });
     });
-    it('text frames', function() {
-      let tags = {
-        TIT2: "abcdeÜ看板かんばん",
-        album: "nasÖÄkdnasd",
-        notfound: "notfound"
-      };
-      let buffer = NodeID3.create(tags);
-      let titleSize = 10 + 1 + iconv.encode(tags.TIT2, ID3Util.parseEncodingByte(0x01)).length;
-      let albumSize = 10 + 1 + iconv.encode(tags.album, ID3Util.parseEncodingByte(0x01)).length;
-      assert.equal(buffer.length,
-          10 + // ID3 frame header
-          titleSize + // TIT2 header + encoding byte + utf16 bytes + utf16 string
-          albumSize // same as above for album
-      );
-      // Check ID3 header
-      assert.ok(buffer.includes(
-          Buffer.concat([
-              Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00]),
-              Buffer.from(ID3Util.encodeSize(titleSize + albumSize))
-          ])
-      ));
-      // Check TIT2 frame
-      assert.ok(buffer.includes(
-          Buffer.concat([
-              Buffer.from([0x54, 0x49, 0x54, 0x32]),
-              ID3Util.decodeSize(ID3Util.encodeSize(titleSize - 10)),
-              Buffer.from([0x00, 0x00]),
-              Buffer.from([0x01]),
-              iconv.encode(tags.TIT2, ID3Util.parseEncodingByte(0x01))
-          ])
-      ));
-      // Check album frame
-      assert.ok(buffer.includes(
-          Buffer.concat([
-            Buffer.from([0x54, 0x41, 0x4C, 0x42]),
-            ID3Util.decodeSize(ID3Util.encodeSize(albumSize - 10)),
-            Buffer.from([0x00, 0x00]),
-            Buffer.from([0x01]),
-            iconv.encode(tags.album, ID3Util.parseEncodingByte(0x01))
-          ])
-      ));
+
+    describe('#write()', function() {
+        it('sync not existing filepath', function() {
+            if(!(NodeID3.write({}, './hopefullydoesnotexist.mp3') instanceof Error)) {
+                assert.fail("No error thrown on non-existing filepath");
+            }
+        });
+        it('async not existing filepath', function() {
+            NodeID3.write({}, './hopefullydoesnotexist.mp3', function(err) {
+                if(!(err instanceof Error)) {
+                    assert.fail("No error thrown on non-existing filepath");
+                }
+            });
+        });
+
+        let buffer = Buffer.from([0x02, 0x06, 0x12, 0x22]);
+        let tags = {title: "abc"};
+        let filepath = './testfile.mp3';
+
+        it('sync write file without id3 tag', function() {
+            fs.writeFileSync(filepath, buffer, 'binary');
+            NodeID3.write(tags, filepath);
+            let newFileBuffer = fs.readFileSync(filepath);
+            fs.unlinkSync(filepath);
+            assert.equal(Buffer.compare(
+                newFileBuffer,
+                Buffer.concat([NodeID3.create(tags), buffer])
+            ), 0);
+        });
+        it('async write file without id3 tag', function(done) {
+            fs.writeFileSync(filepath, buffer, 'binary');
+            NodeID3.write(tags, filepath, function() {
+                let newFileBuffer = fs.readFileSync(filepath);
+                fs.unlinkSync(filepath);
+                if(Buffer.compare(
+                    newFileBuffer,
+                    Buffer.concat([NodeID3.create(tags), buffer])
+                ) === 0) {
+                    done();
+                } else {
+                    done(new Error("buffer not the same"))
+                }
+            });
+        });
+
+        let bufferWithTag = Buffer.concat([NodeID3.create(tags), buffer]);
+        tags = {album: "ix123"};
+
+        it('sync write file with id3 tag', function() {
+            fs.writeFileSync(filepath, bufferWithTag, 'binary');
+            NodeID3.write(tags, filepath);
+            let newFileBuffer = fs.readFileSync(filepath);
+            fs.unlinkSync(filepath);
+            assert.equal(Buffer.compare(
+                newFileBuffer,
+                Buffer.concat([NodeID3.create(tags), buffer])
+            ), 0);
+        });
+        it('async write file with id3 tag', function(done) {
+            fs.writeFileSync(filepath, bufferWithTag, 'binary');
+            NodeID3.write(tags, filepath, function() {
+                let newFileBuffer = fs.readFileSync(filepath);
+                fs.unlinkSync(filepath);
+                if(Buffer.compare(
+                    newFileBuffer,
+                    Buffer.concat([NodeID3.create(tags), buffer])
+                ) === 0) {
+                    done();
+                } else {
+                    done(new Error("file written incorrectly"));
+                }
+            });
+        });
     });
-  });
 });
 
+describe('ID3Util', function () {
+    describe('#removeTagFromBuffer()', function () {
+        it('no tags in buffer', function () {
+            let emptyBuffer = Buffer.from([0x12, 0x04, 0x05, 0x01, 0x76, 0x27, 0x76, 0x27, 0x76, 0x27, 0x76, 0x27]);
+            assert.equal(Buffer.compare(
+                emptyBuffer,
+                ID3Util.removeTagFromBuffer(emptyBuffer)
+            ), 0);
+        });
+
+        it('tags at start', function () {
+            let buffer = Buffer.from([0x22, 0x73, 0x72]);
+            let bufferWithID3 = Buffer.concat([
+                NodeID3.create({title: "abc"}),
+                buffer
+            ]);
+            assert.equal(Buffer.compare(
+                ID3Util.removeTagFromBuffer(bufferWithID3),
+                buffer
+            ), 0);
+        });
+
+        it('tags in middle/end', function () {
+            let buffer = Buffer.from([0x22, 0x73, 0x72]);
+            let bufferWithID3 = Buffer.concat([
+                buffer,
+                NodeID3.create({title: "abc"}),
+                buffer
+            ]);
+            assert.equal(Buffer.compare(
+                ID3Util.removeTagFromBuffer(bufferWithID3),
+                Buffer.concat([buffer, buffer])
+            ), 0);
+        });
+    });
+});
 
 /*let success = nodeID3.create({});
 

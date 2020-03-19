@@ -1,7 +1,7 @@
+module.exports = ID3Frame;
+
 const iconv = require("iconv-lite");
 const ID3Util = require("./ID3Util");
-
-module.exports = ID3Frame;
 
 const ID3V2_2_IDENTIFIER_SIZE = 3;
 const ID3V2_3_IDENTIFIER_SIZE = 4;
@@ -13,7 +13,7 @@ function ID3Frame(id3Tag, identifier, body) {
     this.body = body;
 }
 
-ID3Frame.prototype.parse = function(buffer) {
+ID3Frame.prototype.from = function(buffer) {
     if(!buffer || buffer.length < 10 || !this.id3Tag) {
         return null;
     }
@@ -41,7 +41,7 @@ ID3Frame.prototype.parse = function(buffer) {
     return this;
 };
 
-ID3Frame.prototype.createFrameBuffer = function() {
+ID3Frame.prototype.createBuffer = function() {
     if(!this.identifier) {
         return null;
     }
@@ -51,22 +51,24 @@ ID3Frame.prototype.createFrameBuffer = function() {
     return Buffer.concat([header, this.body]);
 };
 
-function TextInformationFrame(identifier, encodingByte, text) {
+module.exports.TextInformationFrame = TextInformationFrame;
+
+function TextInformationFrame(text = "", identifier = "TTTT", encodingByte = 0x01) {
     this.identifier = identifier;
     this.encodingByte = encodingByte;
     this.text = text;
 }
 
-TextInformationFrame.prototype.parse = function(body) {
+TextInformationFrame.prototype.from = function(body) {
     this.encodingByte = body[0];
-    this.text = iconv.decode(body.slice(1), ID3Util.parseEncodingByte(this.encodingByte));
+    this.text = iconv.decode(body.slice(1), ID3Util.encodingByteToString(this.encodingByte));
     return this;
 };
 
-TextInformationFrame.prototype.createFrameBuffer = function() {
+TextInformationFrame.prototype.createBuffer = function() {
     let body = Buffer.concat([
         Buffer.alloc(1, this.encodingByte),
-        iconv.encode(this.text, ID3Util.parseEncodingByte(this.encodingByte))
+        iconv.encode(this.text, ID3Util.encodingByteToString(this.encodingByte))
     ]);
-    return (new ID3Frame(null, this.identifier, body)).createFrameBuffer();
+    return (new ID3Frame(null, this.identifier, body)).createBuffer();
 };

@@ -1,96 +1,8 @@
-const ID3Frame = require('./src/ID3Tag');
-const fs = require('fs');
-const iconv = require("iconv-lite");
-
 module.exports = new NodeID3;
 
-/*
-**  Used specification: http://id3.org/id3v2.3.0
-*/
-
-/*
-**  List of official text information frames
-**  LibraryName: "T***"
-**  Value is the ID of the text frame specified in the link above, the object's keys are just for simplicity, you can also use the ID directly.
-*/
-const TFrames = {
-    album:              "TALB",
-    bpm:                "TBPM",
-    composer:           "TCOM",
-    genre:              "TCON",
-    copyright:          "TCOP",
-    date:               "TDAT",
-    playlistDelay:      "TDLY",
-    encodedBy:          "TENC",
-    textWriter:         "TEXT",
-    fileType:           "TFLT",
-    time:               "TIME",
-    contentGroup:       "TIT1",
-    title:              "TIT2",
-    subtitle:           "TIT3",
-    initialKey:         "TKEY",
-    language:           "TLAN",
-    length:             "TLEN",
-    mediaType:          "TMED",
-    originalTitle:      "TOAL",
-    originalFilename:   "TOFN",
-    originalTextwriter: "TOLY",
-    originalArtist:     "TOPE",
-    originalYear:       "TORY",
-    fileOwner:          "TOWN",
-    artist:             "TPE1",
-    performerInfo:      "TPE2",
-    conductor:          "TPE3",
-    remixArtist:        "TPE4",
-    partOfSet:          "TPOS",
-    publisher:          "TPUB",
-    trackNumber:        "TRCK",
-    recordingDates:     "TRDA",
-    internetRadioName:  "TRSN",
-    internetRadioOwner: "TRSO",
-    size:               "TSIZ",
-    ISRC:               "TSRC",
-    encodingTechnology: "TSSE",
-    year:               "TYER"
-}
-
-const TFramesV220 =  {
-    album:              "TAL",
-    bpm:                "TBP",
-    composer:           "TCM",
-    genre:              "TCO",
-    copyright:          "TCR",
-    date:               "TDA",
-    playlistDelay:      "TDY",
-    encodedBy:          "TEN",
-    textWriter:         "TEXT",
-    fileType:           "TFT",
-    time:               "TIM",
-    contentGroup:       "TT1",
-    title:              "TT2",
-    subtitle:           "TT3",
-    initialKey:         "TKE",
-    language:           "TLA",
-    length:             "TLE",
-    mediaType:          "TMT",
-    originalTitle:      "TOT",
-    originalFilename:   "TOF",
-    originalTextwriter: "TOL",
-    originalArtist:     "TOA",
-    originalYear:       "TOR",
-    artist:             "TP1",
-    performerInfo:      "TP2",
-    conductor:          "TP3",
-    remixArtist:        "TP4",
-    partOfSet:          "TPA",
-    publisher:          "TPB",
-    trackNumber:        "TRK",
-    recordingDates:     "TRD",
-    size:               "TSI",
-    ISRC:               "TRC",
-    encodingTechnology: "TSS",
-    year:               "TYE"
-}
+const ID3Tag = require('./src/ID3Tag');
+const ID3Util = require('./src/ID3Util.js');
+const fs = require('fs');
 
 /*
 **  List of non-text frames which follow their specific specification
@@ -98,7 +10,7 @@ const TFramesV220 =  {
 **  create  => function to create the frame
 **  read    => function to read the frame
 */
-const SFrames = {
+/*const SFrames = {
     comment: {
         create: "createCommentFrame",
         read: "readCommentFrame",
@@ -151,7 +63,7 @@ const SFramesV220 = {
 /*
 **  Officially available types of the picture frame
 */
-const APICTypes = [
+/*const APICTypes = [
 	"other",
 	"file icon",
 	"other file icon",
@@ -174,26 +86,30 @@ const APICTypes = [
 	"band logotype",
 	"publisher logotype"
 ]
+*/
 
 function NodeID3() {
 }
 
-/*
-**  Write passed tags to a file/buffer @ filebuffer
-**  tags        => Object
-**  filebuffer  => String || Buffer
-**  fn          => Function (for asynchronous usage)
-*/
+NodeID3.prototype.create = function(tags, fn) {
+    let id3Buffer = (new ID3Tag(tags)).createBuffer();
+    if(fn && typeof fn === 'function') {
+        fn(id3Buffer);
+    } else {
+        return id3Buffer;
+    }
+};
+
 NodeID3.prototype.write = function(tags, filebuffer, fn) {
-    let completeTag = this.create(tags)
+    let tagBuffer = this.create(tags);
     if(filebuffer instanceof Buffer) {
-        filebuffer = this.removeTagsFromBuffer(filebuffer) || filebuffer
-        let completeBuffer = Buffer.concat([completeTag, filebuffer])
+        let strippedBuffer = ID3Util.removeTagFromBuffer(filebuffer) || filebuffer;
+        let completeBuffer = Buffer.concat([tagBuffer, strippedBuffer]);
         if(fn && typeof fn === 'function') {
-            fn(null, completeBuffer)
-            return
+            fn(null, completeBuffer);
+            return;
         } else {
-            return completeBuffer
+            return completeBuffer;
         }
     }
 
@@ -201,65 +117,32 @@ NodeID3.prototype.write = function(tags, filebuffer, fn) {
         try {
             fs.readFile(filebuffer, function(err, data) {
                 if(err) {
-                    fn(err)
-                    return
+                    fn(err);
+                    return;
                 }
-                data = this.removeTagsFromBuffer(data) || data
-                let rewriteFile = Buffer.concat([completeTag, data])
-                fs.writeFile(filebuffer, rewriteFile, 'binary', (err) => {
-                    fn(err)
-                })
-            }.bind(this))
+                let strippedBuffer = ID3Util.removeTagFromBuffer(data) || data;
+                let completeBuffer = Buffer.concat([tagBuffer, strippedBuffer]);
+                fs.writeFile(filebuffer, completeBuffer, 'binary', function(err) {
+                    fn(err);
+                });
+            });
         } catch(err) {
-            fn(err)
+            fn(err);
         }
     } else {
         try {
-            let data = fs.readFileSync(filebuffer)
-            data = this.removeTagsFromBuffer(data) || data
-            let rewriteFile = Buffer.concat([completeTag, data])
-            fs.writeFileSync(filebuffer, rewriteFile, 'binary')
-            return true
+            let data = fs.readFileSync(filebuffer);
+            let strippedBuffer = ID3Util.removeTagFromBuffer(data) || data;
+            let completeBuffer = Buffer.concat([tagBuffer, strippedBuffer]);
+            fs.writeFileSync(filebuffer, completeBuffer, 'binary');
+            return true;
         } catch(err) {
-            return err
+            return err;
         }
     }
-}
+};
 
-NodeID3.prototype.create = function(tags, fn) {
-    let frames = []
-
-    //  Push a header for the ID3-Frame
-    frames.push(this.createTagHeader())
-
-    frames = frames.concat(this.createBuffersFromTags(tags))
-
-    //  Calculate frame size of ID3 body to insert into header
-
-    let totalSize = 0
-    frames.forEach((frame) => {
-        totalSize += frame.length
-    })
-
-    //  Don't count ID3 header itself
-    totalSize -= 10
-    //  ID3 header size uses only 7 bits of a byte, bit shift is needed
-    let size = this.encodeSize(totalSize)
-
-    //  Write bytes to ID3 frame header, which is the first frame
-    frames[0].writeUInt8(size[0], 6)
-    frames[0].writeUInt8(size[1], 7)
-    frames[0].writeUInt8(size[2], 8)
-    frames[0].writeUInt8(size[3], 9)
-
-    if(fn && typeof fn === 'function') {
-        fn(Buffer.concat(frames))
-    } else {
-        return Buffer.concat(frames)
-    }
-}
-
-NodeID3.prototype.createBuffersFromTags = function(tags) {
+/*NodeID3.prototype.createBuffersFromTags = function(tags) {
     let frames = []
     let tagNames = Object.keys(tags)
 
@@ -284,7 +167,7 @@ NodeID3.prototype.createBuffersFromTags = function(tags) {
     }.bind(this))
 
     return frames
-}
+}*/
 
 /*
 **  Read ID3-Tags from passed buffer/filepath
@@ -292,27 +175,27 @@ NodeID3.prototype.createBuffersFromTags = function(tags) {
 **  options     => Object
 **  fn          => function (for asynchronous usage)
 */
-NodeID3.prototype.read = function(filebuffer, fn) {
-    let frame = new ID3Frame();
+/*NodeID3.prototype.read = function(filebuffer, fn) {
+    //let frame = new ID3Frame();
     if(!fn || typeof fn !== 'function') {
         if(typeof filebuffer === "string" || filebuffer instanceof String) {
             filebuffer = fs.readFileSync(filebuffer)
         }
-        return frame.parse(filebuffer).getTags();
+        return frame.from(filebuffer).getTags();
     } else {
         if(typeof filebuffer === "string" || filebuffer instanceof String) {
             fs.readFile(filebuffer, function(err, data) {
                 if(err) {
                     fn(err, null);
                 } else {
-                    fn(null, frame.parse(data).getTags());
+                    fn(null, frame.from(data).getTags());
                 }
             }.bind(this))
         } else {
-            fn(null, frame.parse(filebuffer).getTags());
+            fn(null, frame.from(filebuffer).getTags());
         }
     }
-};
+};*/
 
 /*
 **  Update ID3-Tags from passed buffer/filepath
@@ -320,7 +203,7 @@ NodeID3.prototype.read = function(filebuffer, fn) {
 **  tags        => Object
 **  fn          => function (for asynchronous usage)
 */
-NodeID3.prototype.update = function(tags, filebuffer, fn) {
+/*NodeID3.prototype.update = function(tags, filebuffer, fn) {
     let rawTags = {}
     let SRawToNameMap = {}
     Object.keys(SFrames).map((key, index) => {
@@ -398,14 +281,14 @@ NodeID3.prototype.update = function(tags, filebuffer, fn) {
             this.write(currentTags, filebuffer, fn)
         }.bind(this))
     }
-}
+}*/
 
 /*
 **  Read ID3-Tags from passed buffer
 **  filebuffer  => Buffer
 **  options     => Object
 */
-NodeID3.prototype.getTagsFromBuffer = function(filebuffer, options) {
+/*NodeID3.prototype.getTagsFromBuffer = function(filebuffer, options) {
     let framePosition = this.getFramePosition(filebuffer)
     if(framePosition === -1) {
         return false
@@ -428,9 +311,9 @@ NodeID3.prototype.getTagsFromBuffer = function(filebuffer, options) {
     let frames = this.getFramesFromID3Body(ID3FrameBody, ID3Version, identifierSize, textframeHeaderSize)
 
     return this.getTagsFromFrames(frames, ID3Version)
-}
+}*/
 
-NodeID3.prototype.getFramesFromID3Body = function(ID3FrameBody, ID3Version, identifierSize, textframeHeaderSize) {
+/*NodeID3.prototype.getFramesFromID3Body = function(ID3FrameBody, ID3Version, identifierSize, textframeHeaderSize) {
     let currentPosition = 0
     let frames = []
     while(currentPosition < ID3FrameBody.length && ID3FrameBody[currentPosition] !== 0x00) {
@@ -456,9 +339,9 @@ NodeID3.prototype.getFramesFromID3Body = function(ID3FrameBody, ID3Version, iden
     }
 
     return frames
-}
+}*/
 
-NodeID3.prototype.getTagsFromFrames = function(frames, ID3Version) {
+/*NodeID3.prototype.getTagsFromFrames = function(frames, ID3Version) {
     let tags = { raw: {} }
 
     frames.forEach(function(frame, index) {
@@ -505,35 +388,35 @@ NodeID3.prototype.getTagsFromFrames = function(frames, ID3Version) {
     }.bind(this))
 
     return tags
-}
+}*/
 
 /*
 **  Get position of ID3-Frame, returns -1 if not found
 **  buffer  => Buffer
 */
-NodeID3.prototype.getFramePosition = function(buffer) {
+/*NodeID3.prototype.getFramePosition = function(buffer) {
     let framePosition = buffer.indexOf("ID3")
     if(framePosition == -1 || framePosition > 20) {
         return -1
     } else {
         return framePosition
     }
-}
+}*/
 
 /*
 **  Get size of tag from header
 **  buffer  => Buffer/Array (header)
 */
-NodeID3.prototype.getTagSize = function(buffer) {
+/*NodeID3.prototype.getTagSize = function(buffer) {
     return this.decodeSize(Buffer.from([buffer[6], buffer[7], buffer[8], buffer[9]]))
-}
+}*/
 
 /*
 **  Get size of frame from header
 **  buffer  => Buffer/Array (header)
 **  decode  => Boolean
 */
-NodeID3.prototype.getFrameSize = function(buffer, decode, ID3Version) {
+/*NodeID3.prototype.getFrameSize = function(buffer, decode, ID3Version) {
     let decodeBytes
     if(ID3Version > 2) {
         decodeBytes = [buffer[4], buffer[5], buffer[6], buffer[7]]
@@ -545,13 +428,13 @@ NodeID3.prototype.getFrameSize = function(buffer, decode, ID3Version) {
     } else {
         return Buffer.from(decodeBytes).readUIntBE(0, decodeBytes.length)
     }
-}
+}*/
 
 /*
 **  Checks and removes already written ID3-Frames from a buffer
 **  data => buffer
 */
-NodeID3.prototype.removeTagsFromBuffer = function(data) {
+/*NodeID3.prototype.removeTagsFromBuffer = function(data) {
     let framePosition = this.getFramePosition(data)
 
     if(framePosition == -1) {
@@ -567,13 +450,13 @@ NodeID3.prototype.removeTagsFromBuffer = function(data) {
 
     let size = this.decodeSize(hSize)
     return data.slice(framePosition + size + 10)
-}
+}*/
 
 /*
 **  Checks and removes already written ID3-Frames from a file
 **  data => buffer
 */
-NodeID3.prototype.removeTags = function(filepath, fn) {
+/*NodeID3.prototype.removeTags = function(filepath, fn) {
     if(!fn || typeof fn !== 'function') {
         let data
         try {
@@ -615,71 +498,12 @@ NodeID3.prototype.removeTags = function(filepath, fn) {
             })
         }.bind(this))
     }
-}
-
-/*
-**  This function ensures that the msb of each byte is 0
-**  totalSize => int
-*/
-NodeID3.prototype.encodeSize = function(totalSize) {
-    let byte_3 = totalSize & 0x7F
-    let byte_2 = (totalSize >> 7) & 0x7F
-    let byte_1 = (totalSize >> 14) & 0x7F
-    let byte_0 = (totalSize >> 21) & 0x7F
-    return ([byte_0, byte_1, byte_2, byte_3])
-}
-
-
-/*
-**  This function decodes the 7-bit size structure
-**  hSize => int
-*/
-NodeID3.prototype.decodeSize = function(hSize) {
-    return ((hSize[0] << 21) + (hSize[1] << 14) + (hSize[2] << 7) + (hSize[3]))
-}
-
-/*
-**  Create header for ID3-Frame v2.3.0
-*/
-NodeID3.prototype.createTagHeader = function() {
-    let header = Buffer.alloc(10)
-    header.fill(0)
-    header.write("ID3", 0)              //File identifier
-    header.writeUInt16BE(0x0300, 3)     //Version 2.3.0  --  03 00
-    header.writeUInt16BE(0x0000, 5)     //Flags 00
-
-    //Last 4 bytes are used for header size, but have to be inserted later, because at this point, its size is not clear.
-
-    return header
-}
-
-/*
-** Create text frame
-** specName =>  string (ID)
-** text     =>  string (body)
-*/
-NodeID3.prototype.createTextFrame = function(specName, text) {
-    if(!specName || !text) {
-        return null
-    }
-
-    let encoded = iconv.encode(text, "utf16")
-
-    let buffer = Buffer.alloc(10)
-    buffer.fill(0)
-    buffer.write(specName, 0)                           //  ID of the specified frame
-    buffer.writeUInt32BE((encoded).length + 1, 4)       //  Size of frame (string length + encoding byte)
-    let encBuffer = Buffer.alloc(1)                       //  Encoding (now using UTF-16 encoded w/ BOM)
-    encBuffer.fill(1)                                   //  UTF-16
-
-    var contentBuffer = Buffer.from(encoded, 'binary')   //  Text -> Binary encoding for UTF-16 w/ BOM
-    return Buffer.concat([buffer, encBuffer, contentBuffer])
-}
+}*/
 
 /*
 **  data => string || buffer
 */
-NodeID3.prototype.createPictureFrame = function(data) {
+/*NodeID3.prototype.createPictureFrame = function(data) {
     try {
         if(data && data.imageBuffer && data.imageBuffer instanceof Buffer === true) {
             data = data.imageBuffer
@@ -711,7 +535,7 @@ NodeID3.prototype.createPictureFrame = function(data) {
 /*
 **  data => buffer
 */
-NodeID3.prototype.readPictureFrame = function(APICFrame, ID3Version) {
+/*NodeID3.prototype.readPictureFrame = function(APICFrame, ID3Version) {
     let picture = {}
 
     let APICMimeType
@@ -849,7 +673,7 @@ NodeID3.prototype.createText = function(text, encoding, terminated) {
 **      shortText:  string
 **  }
 **/
-NodeID3.prototype.createCommentFrame = function(comment) {
+/*NodeID3.prototype.createCommentFrame = function(comment) {
     comment = comment || {}
     if(!comment.text) {
         return null
@@ -872,7 +696,7 @@ NodeID3.prototype.createCommentFrame = function(comment) {
 /*
 **  frame   => Buffer
 */
-NodeID3.prototype.readCommentFrame = function(frame) {
+/*NodeID3.prototype.readCommentFrame = function(frame) {
     let tags = {}
 
     if(!frame) {
@@ -912,7 +736,7 @@ NodeID3.prototype.readCommentFrame = function(frame) {
 **      shortText:  string
 **  }
 **/
-NodeID3.prototype.createUnsynchronisedLyricsFrame = function(unsynchronisedLyrics) {
+/*NodeID3.prototype.createUnsynchronisedLyricsFrame = function(unsynchronisedLyrics) {
     unsynchronisedLyrics = unsynchronisedLyrics || {}
     if(typeof unsynchronisedLyrics === 'string' || unsynchronisedLyrics instanceof String) {
         unsynchronisedLyrics = {
@@ -940,7 +764,7 @@ NodeID3.prototype.createUnsynchronisedLyricsFrame = function(unsynchronisedLyric
 /*
 **  frame   => Buffer
 */
-NodeID3.prototype.readUnsynchronisedLyricsFrame = function(frame) {
+/*NodeID3.prototype.readUnsynchronisedLyricsFrame = function(frame) {
     let tags = {}
 
     if(!frame) {
@@ -979,7 +803,7 @@ NodeID3.prototype.readUnsynchronisedLyricsFrame = function(frame) {
 **      value:          string
 **  }
 **/
-NodeID3.prototype.createUserDefinedText = function(userDefinedText, recursiveBuffer) {
+/*NodeID3.prototype.createUserDefinedText = function(userDefinedText, recursiveBuffer) {
     udt = userDefinedText || {}
     if(udt instanceof Array && udt.length > 0) {
         if(!recursiveBuffer) {
@@ -1016,7 +840,7 @@ NodeID3.prototype.createUserDefinedText = function(userDefinedText, recursiveBuf
 /*
 **  frame   => Buffer
 */
-NodeID3.prototype.readUserDefinedText = function(frame) {
+/*NodeID3.prototype.readUserDefinedText = function(frame) {
     let tags = {}
 
     if(!frame) {
@@ -1054,7 +878,7 @@ NodeID3.prototype.readUserDefinedText = function(frame) {
 **      counter:  int
 **  }
 **/
-NodeID3.prototype.createPopularimeterFrame = function(popularimeter) {
+/*NodeID3.prototype.createPopularimeterFrame = function(popularimeter) {
     popularimeter = popularimeter || {}
     let email = popularimeter.email
     let rating = Math.trunc(popularimeter.rating)
@@ -1087,7 +911,7 @@ NodeID3.prototype.createPopularimeterFrame = function(popularimeter) {
 /*
 **  frame   => Buffer
 */
-NodeID3.prototype.readPopularimeterFrame = function(frame) {
+/*NodeID3.prototype.readPopularimeterFrame = function(frame) {
     let tags = {}
 
     if(!frame) {
@@ -1117,7 +941,7 @@ NodeID3.prototype.readPopularimeterFrame = function(frame) {
 **      data:   buffer|string
 **  }
 **/
-NodeID3.prototype.createPrivateFrame = function(private) {
+/*NodeID3.prototype.createPrivateFrame = function(private) {
     if(private instanceof Array && private.length > 0) {
         let frames = []
         private.forEach(tag => {
@@ -1153,7 +977,7 @@ NodeID3.prototype.createPrivateFrameHelper = function(private) {
 /*
 **  frame   => Buffer
 */
-NodeID3.prototype.readPrivateFrame = function(frame) {
+/*NodeID3.prototype.readPrivateFrame = function(frame) {
     let tags = {}
 
     if(!frame) {
@@ -1186,7 +1010,7 @@ NodeID3.prototype.readPrivateFrame = function(frame) {
 **      tags: object
 **  }
 **/
-NodeID3.prototype.createChapterFrame = function(chapter) {
+/*NodeID3.prototype.createChapterFrame = function(chapter) {
     if(chapter instanceof Array && chapter.length > 0) {
         let frames = []
         chapter.forEach((tag, index) => {
@@ -1236,7 +1060,7 @@ NodeID3.prototype.createChapterFrameHelper = function(chapter, id) {
 /*
 **  frame   => Buffer
 */
-NodeID3.prototype.readChapterFrame = function(frame) {
+/*NodeID3.prototype.readChapterFrame = function(frame) {
     let tags = {}
 
     if(!frame) {
@@ -1265,3 +1089,4 @@ NodeID3.prototype.readChapterFrame = function(frame) {
 
     return tags
 }
+*/
