@@ -50,7 +50,7 @@ ID3Tag.prototype.framesToBuffer = function(frames = {}) {
         let frameIdentifier = ID3FrameMapper.getFrameIdentifier(key);
         let frameType = ID3FrameMapper.getFrameType(frameIdentifier);
         if(!frameType) return;
-        let buffer = (new frameType(frames[key], frameIdentifier)).createBuffer();
+        let buffer = (new frameType(this, frames[key], frameIdentifier)).createBuffer();
         if(buffer) {
             frameBuffers.push(buffer);
         }
@@ -62,7 +62,7 @@ ID3Tag.prototype.framesToBuffer = function(frames = {}) {
  *
  * @return {this, null}
  */
-ID3Tag.prototype.from = function(buffer) {
+ID3Tag.prototype.loadFrom = function(buffer) {
     /* Search Buffer for valid ID3 frame */
     let framePosition = -1;
     let frameHeaderValid = false;
@@ -72,7 +72,7 @@ ID3Tag.prototype.from = function(buffer) {
             /* It's possible that there is a "ID3" sequence without being an ID3 Frame,
              * so we need to check for validity of the next 10 bytes
              */
-            frameHeaderValid = this.IsValidID3Header(buffer.slice(framePosition, framePosition + 10));
+            frameHeaderValid = ID3Util.isValidID3Header(buffer.slice(framePosition, framePosition + 10));
         }
     } while (framePosition !== -1 && !frameHeaderValid);
 
@@ -101,66 +101,52 @@ ID3Tag.prototype.from = function(buffer) {
     }
 };
 
-/**
- * @return {boolean}
- */
-ID3Tag.prototype.IsValidID3Header = function(buffer) {
-    if(buffer.length < 10) {
-        return false;
-    } else if(buffer.readUIntBE(0, 3) !== 0x494433) {
-        return false;
-    } else if([0x02, 0x03, 0x04].indexOf(buffer[3]) === -1 || buffer[4] !== 0x00) {
-        return false;
-    } else if(buffer[6] & 128 === 1 || buffer[7] & 128 === 1 || buffer[8] & 128 === 1 || buffer[9] & 128 === 1) {
-        return false;
-    }
-    return true;
-};
-
 ID3Tag.prototype.getTags = function() {
-    return {};
+    let tags = { raw: {} };
+    let frames = this.getTagFramesFromBody();
+    frames.forEach(function(frame) {
+        tags[ID3FrameMapper.getFrameName(frame.identifier)] = tags["raw"][frame.identifier] = frame.value;
+    });
+    return tags;
 };
 
+/**
+ *
+ * @return {[ID3Frame]}
+ */
 ID3Tag.prototype.getTagFramesFromBody = function() {
+    return this.getTagFramesFromBuffer(this.body || Buffer.alloc(0));
+};
+
+/**
+ *
+ * @return {[ID3Frame]}
+ */
+ID3Tag.prototype.getTagFramesFromBuffer = function(buffer) {
     let frames = [];
-    if(!this.body) {
+    if(!buffer) {
         return frames;
     }
 
     let currentPosition = 0;
-    while(currentPosition < this.body.length && this.body[currentPosition] !== 0x00) {
-        let currentFrame = (new ID3Frame(this)).from(this.body.slice(currentPosition));
+    while(currentPosition < buffer.length && buffer[currentPosition] !== 0x00) {
+        let currentFrame = (new ID3Frame(this)).loadFrom(buffer.slice(currentPosition));
         if(currentFrame && currentFrame.body && currentFrame.body.length > 0) {
-            if(currentFrame.identifier.startsWith("T")) {
-                //HANDLESTUFF
+            let frameType = ID3FrameMapper.getFrameType(currentFrame.identifier);
+            if(!frameType) {
+                currentPosition += currentFrame.body.length + currentFrame.header.length;
+                continue;
             }
+            let frame = new frameType(this, null, currentFrame.identifier).loadFrom(buffer.slice(currentPosition));
+            if(!frame) {
+                currentPosition += currentFrame.body.length + currentFrame.header.length;
+                continue;
+            }
+            frames.push(frame);
+            currentPosition += currentFrame.body.length + currentFrame.header.length;
+        } else {
+            currentPosition++;
         }
     }
-    /*
-    let currentPosition = 0
-    let frames = []
-    while(currentPosition < ID3FrameBody.length && ID3FrameBody[currentPosition] !== 0x00) {
-        let bodyFrameHeader = Buffer.alloc(textframeHeaderSize)
-        ID3FrameBody.copy(bodyFrameHeader, 0, currentPosition)
-
-        let decodeSize = false
-        if(ID3Version == 4) {
-            decodeSize = true
-        }
-        let bodyFrameSize = this.getFrameSize(bodyFrameHeader, decodeSize, ID3Version)
-        if(bodyFrameSize > (ID3FrameBody.length - currentPosition)) {
-            break
-        }
-        let bodyFrameBuffer = Buffer.alloc(bodyFrameSize)
-        ID3FrameBody.copy(bodyFrameBuffer, 0, currentPosition + textframeHeaderSize)
-        //  Size of sub frame + its header
-        currentPosition += bodyFrameSize + textframeHeaderSize
-        frames.push({
-            name: bodyFrameHeader.toString('utf8', 0, identifierSize),
-            body: bodyFrameBuffer
-        })
-    }
-
-    return frames
-     */
+    return frames;
 };

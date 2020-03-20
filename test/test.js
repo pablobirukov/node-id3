@@ -126,6 +126,60 @@ describe('NodeID3', function () {
             });
         });
     });
+
+    describe('#read()', function() {
+        it('read empty id3 tag', function() {
+            let frame = NodeID3.create({});
+            assert.deepEqual(
+                NodeID3.read(frame),
+                {raw: {}}
+            );
+        });
+
+        it('read text frames id3 tag', function() {
+            let frame = NodeID3.create({ title: "asdfghjÄÖP", album: "naBGZwssg" });
+            assert.deepEqual(
+                NodeID3.read(frame),
+                { title: "asdfghjÄÖP", album: "naBGZwssg", raw: { TIT2: "asdfghjÄÖP", TALB: "naBGZwssg" }}
+            );
+        });
+
+        it('read tag with broken frame', function() {
+            let frame = NodeID3.create({ title: "asdfghjÄÖP", album: "naBGZwssg" });
+            frame[10] = 0x99;
+            assert.deepEqual(
+                NodeID3.read(frame),
+                { album: "naBGZwssg", raw: { TALB: "naBGZwssg" }}
+            );
+        });
+
+        it('read tag with broken tag', function() {
+            let frame = NodeID3.create({ title: "asdfghjÄÖP", album: "naBGZwssg" });
+            frame[3] = 0x99;
+            assert.deepEqual(
+                NodeID3.read(frame),
+                { raw: { }}
+            );
+        });
+
+        it('read tag with bigger size', function() {
+            let frame = NodeID3.create({ title: "asdfghjÄÖP", album: "naBGZwssg" });
+            frame[9] += 100;
+            assert.deepEqual(
+                NodeID3.read(frame),
+                { title: "asdfghjÄÖP", album: "naBGZwssg", raw: { TIT2: "asdfghjÄÖP", TALB: "naBGZwssg" }}
+            );
+        });
+
+        it('read tag with smaller size', function() {
+            let frame = NodeID3.create({ title: "asdfghjÄÖP", album: "naBGZwssg" });
+            frame[9] -= 25;
+            assert.deepEqual(
+                NodeID3.read(frame),
+                { title: "asdfghjÄÖP", raw: { TIT2: "asdfghjÄÖP" }}
+            );
+        });
+    });
 });
 
 describe('ID3Util', function () {

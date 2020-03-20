@@ -7,13 +7,13 @@ const ID3V2_2_IDENTIFIER_SIZE = 3;
 const ID3V2_3_IDENTIFIER_SIZE = 4;
 const ID3V2_4_IDENTIFIER_SIZE = 4;
 
-function ID3Frame(id3Tag, identifier, body) {
+function ID3Frame(id3Tag, value, identifier) {
     this.id3Tag = id3Tag;
+    this.value = value;
     this.identifier = identifier;
-    this.body = body;
 }
 
-ID3Frame.prototype.from = function(buffer) {
+ID3Frame.prototype.loadFrom = function(buffer) {
     if(!buffer || buffer.length < 10 || !this.id3Tag) {
         return null;
     }
@@ -33,9 +33,12 @@ ID3Frame.prototype.from = function(buffer) {
             return null;
     }
 
-    this.identifier = buffer.slice(0, identifierSize);
+    this.identifier = buffer.slice(0, identifierSize).toString();
+    this.header = buffer.slice(0, 10);
     if(buffer.length > 10) {
         this.body = buffer.slice(10, buffer.readUInt32BE(identifierSize) + 10);
+    } else {
+        this.body = Buffer.alloc(0);
     }
 
     return this;
@@ -53,22 +56,22 @@ ID3Frame.prototype.createBuffer = function() {
 
 module.exports.TextInformationFrame = TextInformationFrame;
 
-function TextInformationFrame(text = "", identifier = "TTTT", encodingByte = 0x01) {
-    this.identifier = identifier;
+function TextInformationFrame(id3Tag, value = "", identifier = "TTTT", encodingByte = 0x01) {
+    ID3Frame.call(this, id3Tag, value, identifier);
     this.encodingByte = encodingByte;
-    this.text = text;
 }
 
-TextInformationFrame.prototype.from = function(body) {
-    this.encodingByte = body[0];
-    this.text = iconv.decode(body.slice(1), ID3Util.encodingByteToString(this.encodingByte));
+TextInformationFrame.prototype.loadFrom = function(buffer) {
+    ID3Frame.prototype.loadFrom.call(this, buffer);
+    this.encodingByte = this.body[0];
+    this.value = iconv.decode(this.body.slice(1), ID3Util.encodingByteToString(this.encodingByte));
     return this;
 };
 
 TextInformationFrame.prototype.createBuffer = function() {
-    let body = Buffer.concat([
+    this.body = Buffer.concat([
         Buffer.alloc(1, this.encodingByte),
-        iconv.encode(this.text, ID3Util.encodingByteToString(this.encodingByte))
+        iconv.encode(this.value, ID3Util.encodingByteToString(this.encodingByte))
     ]);
-    return (new ID3Frame(null, this.identifier, body)).createBuffer();
+    return ID3Frame.prototype.createBuffer.call(this);
 };

@@ -90,6 +90,10 @@ const ID3v220NameToIdentifier = {
     year:               "TYE"
 };
 
+/**
+ *
+ * @return {string, null}
+ */
 module.exports.getFrameIdentifier = function(name, version = 3) {
     if(!name) return null;
     if(version === 2) {
@@ -101,6 +105,25 @@ module.exports.getFrameIdentifier = function(name, version = 3) {
     return null;
 };
 
+/**
+ *
+ * @return {string, null}
+ */
+module.exports.getFrameName = function(identifier, version = 3) {
+    if(!identifier) return null;
+    if(version === 2) {
+        return Object.keys(ID3v220NameToIdentifier).find(key => ID3v220NameToIdentifier[key] === identifier);
+    }
+    if(version >= 3) {
+        return Object.keys(ID3v230NameToIdentifier).find(key => ID3v230NameToIdentifier[key] === identifier);
+    }
+    return null;
+};
+
+/**
+ *
+ * @return {ID3Frame, null}
+ */
 module.exports.getFrameType = function(name) {
     name = this.getFrameIdentifier(name);
     if(!name) return null;

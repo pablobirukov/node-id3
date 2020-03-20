@@ -142,6 +142,31 @@ NodeID3.prototype.write = function(tags, filebuffer, fn) {
     }
 };
 
+NodeID3.prototype.read = function(filebuffer, fn) {
+    let tag = new ID3Tag();
+    if(!fn || typeof fn !== 'function') {
+        if(typeof filebuffer === "string" || filebuffer instanceof String) {
+            filebuffer = fs.readFileSync(filebuffer)
+        }
+        tag.loadFrom(filebuffer);
+        return tag.getTags();
+    } else {
+        if(typeof filebuffer === "string" || filebuffer instanceof String) {
+            fs.readFile(filebuffer, function(err, data) {
+                if(err) {
+                    fn(err, null);
+                } else {
+                    tag.loadFrom(data);
+                    fn(null, tag.getTags());
+                }
+            }.bind(this))
+        } else {
+            tag.loadFrom(filebuffer);
+            fn(null, tag.getTags());
+        }
+    }
+};
+
 /*NodeID3.prototype.createBuffersFromTags = function(tags) {
     let frames = []
     let tagNames = Object.keys(tags)

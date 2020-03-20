@@ -40,8 +40,24 @@ module.exports.decodeSize = function(hSize) {
     return Buffer.from([hSize[0] << 21, hSize[1] << 14, hSize[2] << 7, hSize[3]]);
 };
 
+/**
+ * @return {boolean}
+ */
+module.exports.isValidID3Header = function(buffer) {
+    if(buffer.length < 10) {
+        return false;
+    } else if(buffer.readUIntBE(0, 3) !== 0x494433) {
+        return false;
+    } else if([0x02, 0x03, 0x04].indexOf(buffer[3]) === -1 || buffer[4] !== 0x00) {
+        return false;
+    } else if(buffer[6] & 128 === 1 || buffer[7] & 128 === 1 || buffer[8] & 128 === 1 || buffer[9] & 128 === 1) {
+        return false;
+    }
+    return true;
+};
+
 module.exports.removeTagFromBuffer = function(buffer) {
-    let id3Tag = (new ID3Tag()).from(buffer);
+    let id3Tag = (new ID3Tag()).loadFrom(buffer);
     if(!id3Tag) return buffer;
     let id3TagIndex = buffer.indexOf(id3Tag.header);
     if(id3TagIndex === -1) return buffer;
