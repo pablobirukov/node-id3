@@ -51,6 +51,62 @@ describe('NodeID3', function () {
                 ])
             ));
         });
+
+        it('user defined text frames', function() {
+            let tags = {
+                userDefinedText: {
+                    description: "abc",
+                    value: "defg"
+                }
+            };
+            let buffer = NodeID3.create(tags).slice(10);
+            let descEncoded = iconv.encode(tags.userDefinedText.description + "\0", "UTF-16");
+            let valueEncoded = iconv.encode(tags.userDefinedText.value, "UTF-16");
+            assert.equal(Buffer.compare(
+                buffer,
+                Buffer.concat([
+                    Buffer.from([0x54, 0x58, 0x58, 0x58]),
+                    ID3Util.decodeSize(ID3Util.encodeSize(1 + descEncoded.length + valueEncoded.length)),
+                    Buffer.from([0x00, 0x00]),
+                    Buffer.from([0x01]),
+                    descEncoded,
+                    valueEncoded
+                ])
+            ), 0);
+
+            tags = {
+                userDefinedText: [{
+                    description: "abc",
+                    value: "defg"
+                }, {
+                    description: "hij",
+                    value: "klmn"
+                }]
+            };
+            buffer = NodeID3.create(tags).slice(10);
+            let desc1Encoded = iconv.encode(tags.userDefinedText[0].description + "\0", "UTF-16");
+            let value1Encoded = iconv.encode(tags.userDefinedText[0].value, "UTF-16");
+            let desc2Encoded = iconv.encode(tags.userDefinedText[1].description + "\0", "UTF-16");
+            let value2Encoded = iconv.encode(tags.userDefinedText[1].value, "UTF-16");
+
+            assert.equal(Buffer.compare(
+                buffer,
+                Buffer.concat([
+                    Buffer.from([0x54, 0x58, 0x58, 0x58]),
+                    ID3Util.decodeSize(ID3Util.encodeSize(1 + desc1Encoded.length + value1Encoded.length)),
+                    Buffer.from([0x00, 0x00]),
+                    Buffer.from([0x01]),
+                    desc1Encoded,
+                    value1Encoded,
+                    Buffer.from([0x54, 0x58, 0x58, 0x58]),
+                    ID3Util.decodeSize(ID3Util.encodeSize(1 + desc2Encoded.length + value2Encoded.length)),
+                    Buffer.from([0x00, 0x00]),
+                    Buffer.from([0x01]),
+                    desc2Encoded,
+                    value2Encoded
+                ])
+            ), 0);
+        });
     });
 
     describe('#write()', function() {
@@ -177,6 +233,34 @@ describe('NodeID3', function () {
             assert.deepEqual(
                 NodeID3.read(frame),
                 { title: "asdfghjÄÖP", raw: { TIT2: "asdfghjÄÖP" }}
+            );
+        });
+
+        it('read TXXX frame', function() {
+            let tags = { userDefinedText: {description: "abc", value: "deg"} };
+            let frame = NodeID3.create(tags);
+            assert.deepEqual(
+                NodeID3.read(frame),
+                {
+                    userDefinedText: [tags.userDefinedText],
+                    raw: {
+                        TXXX: [tags.userDefinedText]
+                    }
+                }
+            );
+        });
+
+        it('read TXXX array frame', function() {
+            let tags = { userDefinedText: [{description: "abc", value: "deg"}, {description: "abcd", value: "efgh"}] };
+            let frame = NodeID3.create(tags);
+            assert.deepEqual(
+                NodeID3.read(frame),
+                {
+                    userDefinedText: tags.userDefinedText,
+                    raw: {
+                        TXXX: tags.userDefinedText
+                    }
+                }
             );
         });
     });

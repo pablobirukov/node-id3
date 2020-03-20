@@ -75,3 +75,33 @@ TextInformationFrame.prototype.createBuffer = function() {
     ]);
     return ID3Frame.prototype.createBuffer.call(this);
 };
+
+module.exports.UserDefinedTextFrame = UserDefinedTextFrame;
+
+function UserDefinedTextFrame(id3Tag, value = {}, identifier = "TXXX", encodingByte = 0x01) {
+    ID3Frame.call(this, id3Tag, value, identifier);
+    this.encodingByte = encodingByte;
+}
+
+UserDefinedTextFrame.prototype.loadFrom = function(buffer) {
+    ID3Frame.prototype.loadFrom.call(this, buffer);
+    this.encodingByte = this.body[0];
+    let values = ID3Util.splitNullTerminatedBuffer(this.body.slice(1), this.encodingByte);
+    this.value = {};
+    if(values.length > 0) {
+        this.value.description = ID3Util.bufferToDecodedString(values[0], this.encodingByte);
+    }
+    if(values.length > 1) {
+        this.value.value = ID3Util.bufferToDecodedString(values[1], this.encodingByte);
+    }
+    return this;
+};
+
+UserDefinedTextFrame.prototype.createBuffer = function() {
+    this.body = Buffer.concat([
+        Buffer.alloc(1, this.encodingByte),
+        Buffer.from(ID3Util.stringToTerminatedBuffer(this.value.description || "", this.encodingByte)),
+        ID3Util.stringToEncodedBuffer(this.value.value || "", this.encodingByte)
+    ]);
+    return ID3Frame.prototype.createBuffer.call(this);
+};

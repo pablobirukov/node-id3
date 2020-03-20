@@ -1,6 +1,7 @@
 module.exports = {};
 
 const ID3Tag = require('./ID3Tag');
+const iconv = require('iconv-lite');
 
 const ENCODINGS = [
     'ISO-8859-1', 'UTF-16', 'UTF-16BE', 'utf8'
@@ -20,6 +21,17 @@ module.exports.encodingByteFromString = function(encoding) {
       } else {
           return 0x00;
       }
+};
+
+module.exports.encodingFromStringOrByte = function(encoding) {
+    if(ENCODINGS.indexOf(encoding) !== -1) {
+        return encoding;
+    } else if(encoding > -1 && encoding < ENCODINGS.length) {
+        encoding = ENCODINGS[encoding];
+    } else {
+        encoding = ENCODINGS[0];
+    }
+    return encoding;
 };
 
 /**
@@ -65,4 +77,29 @@ module.exports.removeTagFromBuffer = function(buffer) {
         buffer.slice(0, id3TagIndex),
         buffer.slice(id3TagIndex + 10 + id3Tag.size)
     ]);
+};
+
+module.exports.stringToEncodedBuffer = function(str, encodingByte) {
+    return iconv.encode(str, this.encodingFromStringOrByte(encodingByte));
+};
+
+module.exports.bufferToDecodedString = function(buffer, encodingByte) {
+    return iconv.decode(buffer, this.encodingFromStringOrByte(encodingByte));
+};
+
+module.exports.stringToTerminatedBuffer = function(unterminatedString, encodingByte) {
+    return this.stringToEncodedBuffer(unterminatedString + "\0", encodingByte);
+};
+
+module.exports.splitNullTerminatedBuffer = function(buffer, encodingByte) {
+    let splitBuffer;
+    if(encodingByte === 0x01 || encodingByte === 0x03) {
+        splitBuffer = buffer.toString('hex').split('000000').map((str, i, arr) => Buffer.from(str + ((i + 1 !== arr.length) ? '00' : ''), 'hex'));
+        if(splitBuffer.length < 2) {
+            splitBuffer = buffer.toString('hex').split('0000').map(str => Buffer.from(str, 'hex'));
+        }
+    } else {
+        splitBuffer = buffer.toString('hex').split('00').map(str => Buffer.from(str, 'hex'));
+    }
+    return splitBuffer;
 };

@@ -46,16 +46,35 @@ ID3Tag.prototype.createBuffer = function() {
  */
 ID3Tag.prototype.framesToBuffer = function(frames = {}) {
     let frameBuffers = [];
-    Object.keys(frames).forEach(function(key) {
-        let frameIdentifier = ID3FrameMapper.getFrameIdentifier(key);
+
+    this.framesToFlatArray(frames).forEach(function(frame) {
+        let frameIdentifier = ID3FrameMapper.getFrameIdentifier(frame[0]);
         let frameType = ID3FrameMapper.getFrameType(frameIdentifier);
         if(!frameType) return;
-        let buffer = (new frameType(this, frames[key], frameIdentifier)).createBuffer();
-        if(buffer) {
-            frameBuffers.push(buffer);
-        }
+        let buffer = (new frameType(this, frame[1], frameIdentifier)).createBuffer();
+        frameBuffers.push(buffer);
     });
+
     return Buffer.concat(frameBuffers);
+};
+
+ID3Tag.prototype.framesToFlatArray = function(frames = {}) {
+    return Object.entries(frames).filter(function(frame) {
+        if(frame[1] instanceof Array) {
+            return (frame[1].length > 0 && ID3FrameMapper.getFrameOptions(frame[0]).multiple);
+        } else {
+            return true;
+        }
+    }).reduce(function(result, frame) {
+        if(frame[1] instanceof Array) {
+            frame[1].forEach(function(subFrame) {
+                result.push([frame[0], subFrame]);
+            });
+        } else {
+            result.push(frame);
+        }
+        return result;
+    }, []);
 };
 
 /**
@@ -105,7 +124,15 @@ ID3Tag.prototype.getTags = function() {
     let tags = { raw: {} };
     let frames = this.getTagFramesFromBody();
     frames.forEach(function(frame) {
-        tags[ID3FrameMapper.getFrameName(frame.identifier)] = tags["raw"][frame.identifier] = frame.value;
+        let frameName = ID3FrameMapper.getFrameName(frame.identifier);
+        if(ID3FrameMapper.getFrameOptions(frame.identifier).multiple) {
+            if(!tags[frameName]) tags[frameName] = [];
+            if(!tags["raw"][frame.identifier])tags["raw"][frame.identifier] = [];
+            tags[frameName].push(frame.value);
+            tags["raw"][frame.identifier].push(frame.value);
+        } else {
+            tags[frameName] = tags["raw"][frame.identifier] = frame.value;
+        }
     });
     return tags;
 };

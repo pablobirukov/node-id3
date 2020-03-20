@@ -195,34 +195,6 @@ NodeID3.prototype.read = function(filebuffer, fn) {
 }*/
 
 /*
-**  Read ID3-Tags from passed buffer/filepath
-**  filebuffer  => Buffer || String
-**  options     => Object
-**  fn          => function (for asynchronous usage)
-*/
-/*NodeID3.prototype.read = function(filebuffer, fn) {
-    //let frame = new ID3Frame();
-    if(!fn || typeof fn !== 'function') {
-        if(typeof filebuffer === "string" || filebuffer instanceof String) {
-            filebuffer = fs.readFileSync(filebuffer)
-        }
-        return frame.from(filebuffer).getTags();
-    } else {
-        if(typeof filebuffer === "string" || filebuffer instanceof String) {
-            fs.readFile(filebuffer, function(err, data) {
-                if(err) {
-                    fn(err, null);
-                } else {
-                    fn(null, frame.from(data).getTags());
-                }
-            }.bind(this))
-        } else {
-            fn(null, frame.from(filebuffer).getTags());
-        }
-    }
-};*/
-
-/*
 **  Update ID3-Tags from passed buffer/filepath
 **  filebuffer  => Buffer || String
 **  tags        => Object

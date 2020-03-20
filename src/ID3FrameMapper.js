@@ -3,7 +3,18 @@ const ID3Frame = require('./ID3Frame');
 module.exports = {};
 
 const ID3FrameMap = {
-    "T___": ID3Frame.TextInformationFrame
+    "T___": ID3Frame.TextInformationFrame,
+    "TXXX": ID3Frame.UserDefinedTextFrame
+};
+
+const ID3FrameOptions = {
+    "T___": {
+        multiple: false
+    },
+    "TXXX": {
+        multiple: true,
+        compareKey: "description"
+    }
 };
 
 /*
@@ -49,7 +60,8 @@ const ID3v230NameToIdentifier = {
     size:               "TSIZ",
     ISRC:               "TSRC",
     encodingTechnology: "TSSE",
-    year:               "TYER"
+    year:               "TYER",
+    userDefinedText:    "TXXX"
 };
 
 const ID3v220NameToIdentifier = {
@@ -135,4 +147,8 @@ module.exports.getFrameType = function(name) {
         return ID3FrameMap[name];
     }
     return null;
+};
+
+module.exports.getFrameOptions = function(name) {
+    return ID3FrameOptions[this.getFrameIdentifier(name) || "T___"] || {};
 };
