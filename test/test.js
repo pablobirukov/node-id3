@@ -112,7 +112,7 @@ describe('NodeID3', function () {
             let tags = {
                 picture: {
                     description: "asdf",
-                    imageBuffer: Buffer.from('[0x61, 0x62, 0x63, 0x64]'),
+                    imageBuffer: Buffer.from('5B307836312C20307836322C20307836332C20307836345D', 'hex'),
                     mime: "jpeg",
                     type: {id: 3, name: "front cover"}
                 }

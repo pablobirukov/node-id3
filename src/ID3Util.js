@@ -121,6 +121,14 @@ module.exports.stringToTerminatedBuffer = function(unterminatedString, encodingB
     return this.stringToEncodedBuffer(unterminatedString + "\0", encodingByte);
 };
 
+module.exports.terminationBuffer = function(encodingByte = 0x00) {
+    if(encodingByte === 0x01 || encodingByte === 0x03) {
+        return Buffer.alloc(2, 0x00);
+    } else {
+        return Buffer.alloc(1, 0x00);
+    }
+};
+
 module.exports.splitNullTerminatedBuffer = function(buffer, encodingByte = 0x00) {
     let termination = { start: -1, size: 0 };
     if(encodingByte === 0x01 || encodingByte === 0x03) {

@@ -128,10 +128,10 @@ ID3Tag.prototype.getTags = function() {
         if(ID3FrameMapper.getFrameOptions(frame.identifier).multiple) {
             if(!tags[frameName]) tags[frameName] = [];
             if(!tags["raw"][frame.identifier])tags["raw"][frame.identifier] = [];
-            tags[frameName].push(frame.value);
-            tags["raw"][frame.identifier].push(frame.value);
+            tags[frameName].push(frame.frame.value);
+            tags["raw"][frame.identifier].push(frame.frame.value);
         } else {
-            tags[frameName] = tags["raw"][frame.identifier] = frame.value;
+            tags[frameName] = tags["raw"][frame.identifier] = frame.frame.value;
         }
     });
     return tags;
