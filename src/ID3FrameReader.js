@@ -32,7 +32,7 @@ function convertDataType(buffer, dataType, frame, encoding = 0x00) {
     if(!(buffer instanceof Buffer)) return buffer;
     if(buffer.length === 0) return undefined;
     if(dataType === "number") {
-        return buffer.readUIntBE();
+        return parseInt(buffer.toString('hex'), 16);
     } else if (dataType === "string") {
         return ID3Util.bufferToDecodedString(buffer, encoding);
     } else {
