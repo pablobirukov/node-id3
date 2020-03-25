@@ -112,7 +112,7 @@ ID3Tag.prototype.loadFrom = function(buffer) {
             // Bit 4
             footerPresent: flagByte & 16
         };
-        this.size = ID3Util.decodeSize(buffer.slice(framePosition + 6, framePosition + 10)).readUInt32BE(0);
+        this.size = ID3Util.decodeSize(buffer.slice(framePosition + 6, framePosition + 10));
         if(buffer.length > 10) {
             this.body = buffer.slice(framePosition + 10, framePosition + 10 + this.size);
         }

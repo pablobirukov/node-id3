@@ -7,6 +7,30 @@ const ENCODINGS = [
     'ISO-8859-1', 'UTF-16', 'UTF-16BE', 'utf8'
 ];
 
+const APIC_TYPES = [
+    "other",
+    "file icon",
+    "other file icon",
+    "front cover",
+    "back cover",
+    "leaflet page",
+    "media",
+    "lead artist",
+    "artist",
+    "conductor",
+    "band",
+    "composer",
+    "lyricist",
+    "recording location",
+    "during recording",
+    "during performance",
+    "video screen capture",
+    "a bright coloured fish",
+    "illustration",
+    "band logotype",
+    "publisher logotype"
+];
+
 module.exports.encodingByteToString = function(byte) {
     if(byte > -1 && byte < ENCODINGS.length) {
         return ENCODINGS[byte];
@@ -49,7 +73,13 @@ module.exports.encodeSize = function(totalSize) {
  * @return {Buffer}
  */
 module.exports.decodeSize = function(hSize) {
-    return Buffer.from([hSize[0] << 21, hSize[1] << 14, hSize[2] << 7, hSize[3]]);
+    return (hSize[0] << 21) + (hSize[1] << 14) + (hSize[2] << 7) + hSize[3];
+};
+
+module.exports.sizeToBuffer = function(totalSize) {
+    let buffer = Buffer.alloc(4);
+    buffer.writeUInt32BE(totalSize);
+    return buffer;
 };
 
 /**
@@ -91,15 +121,61 @@ module.exports.stringToTerminatedBuffer = function(unterminatedString, encodingB
     return this.stringToEncodedBuffer(unterminatedString + "\0", encodingByte);
 };
 
-module.exports.splitNullTerminatedBuffer = function(buffer, encodingByte) {
-    let splitBuffer;
+module.exports.splitNullTerminatedBuffer = function(buffer, encodingByte = 0x00) {
+    let termination = { start: -1, size: 0 };
     if(encodingByte === 0x01 || encodingByte === 0x03) {
-        splitBuffer = buffer.toString('hex').split('000000').map((str, i, arr) => Buffer.from(str + ((i + 1 !== arr.length) ? '00' : ''), 'hex'));
-        if(splitBuffer.length < 2) {
-            splitBuffer = buffer.toString('hex').split('0000').map(str => Buffer.from(str, 'hex'));
+        termination.start = buffer.indexOf(Buffer.from([0x00, 0x00, 0x00]));
+        termination.size = 2;
+        if(termination.start === -1) {
+            termination.start = buffer.indexOf(Buffer.from([0x00, 0x00]));
+        } else {
+            termination.start += 1;
         }
     } else {
-        splitBuffer = buffer.toString('hex').split('00').map(str => Buffer.from(str, 'hex'));
+        termination.start = buffer.indexOf(0x00);
+        termination.size = 1;
     }
-    return splitBuffer;
+
+    if(termination.start === -1) {
+        return [null, buffer.slice(0)];
+    }
+    else if(buffer.length <= termination.start + termination.length) {
+        return [buffer.slice(0, termination.start), null];
+    } else {
+        return [buffer.slice(0, termination.start), buffer.slice(termination.start + termination.size)];
+    }
+};
+
+module.exports.pictureMimeParser = function(mime) {
+    switch(mime) {
+        case "image/jpeg":
+            return "jpeg";
+        case "image/png":
+            return "png";
+        default:
+            return mime;
+    }
+};
+
+module.exports.pictureMimeWriter = function(mime) {
+    switch(mime) {
+        case "jpeg":
+            return "image/jpeg";
+        case "png":
+            return "image/png";
+        default:
+            return mime;
+    }
+};
+
+module.exports.pictureTypeByteToName = function(byte) {
+    if(byte < 0 || byte >= APIC_TYPES.length) {
+        return APIC_TYPES[0];
+    } else {
+        return APIC_TYPES[byte];
+    }
+};
+
+module.exports.pictureTypeNameToByte = function(name) {
+    return APIC_TYPES.indexOf(name) !== -1 ? APIC_TYPES[APIC_TYPES.indexOf(name)] : 0x00;
 };

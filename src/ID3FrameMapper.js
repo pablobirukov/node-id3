@@ -4,7 +4,8 @@ module.exports = {};
 
 const ID3FrameMap = {
     "T___": ID3Frame.TextInformationFrame,
-    "TXXX": ID3Frame.UserDefinedTextFrame
+    "TXXX": ID3Frame.UserDefinedTextFrame,
+    "APIC": ID3Frame.AttachedPictureFrame
 };
 
 const ID3FrameOptions = {
@@ -14,6 +15,9 @@ const ID3FrameOptions = {
     "TXXX": {
         multiple: true,
         compareKey: "description"
+    },
+    "APIC": {
+        multiple: false
     }
 };
 
@@ -61,7 +65,8 @@ const ID3v230NameToIdentifier = {
     ISRC:               "TSRC",
     encodingTechnology: "TSSE",
     year:               "TYER",
-    userDefinedText:    "TXXX"
+    userDefinedText:    "TXXX",
+    picture:            "APIC"
 };
 
 const ID3v220NameToIdentifier = {

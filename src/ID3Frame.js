@@ -1,7 +1,7 @@
 module.exports = ID3Frame;
 
-const iconv = require("iconv-lite");
 const ID3Util = require("./ID3Util");
+const ID3FrameReader = require("./ID3FrameReader");
 
 const ID3V2_2_IDENTIFIER_SIZE = 3;
 const ID3V2_3_IDENTIFIER_SIZE = 4;
@@ -13,7 +13,7 @@ function ID3Frame(id3Tag, value, identifier) {
     this.identifier = identifier;
 }
 
-ID3Frame.prototype.loadFrom = function(buffer) {
+ID3Frame.prototype.loadFrom = function(buffer, readerArray) {
     if(!buffer || buffer.length < 10 || !this.id3Tag) {
         return null;
     }
@@ -37,6 +37,10 @@ ID3Frame.prototype.loadFrom = function(buffer) {
     this.header = buffer.slice(0, 10);
     if(buffer.length > 10) {
         this.body = buffer.slice(10, buffer.readUInt32BE(identifierSize) + 10);
+        if(readerArray) {
+            let frame = ID3FrameReader.buildFrame(this.body, readerArray);
+            Object.assign(this, frame);
+        }
     } else {
         this.body = Buffer.alloc(0);
     }
@@ -62,16 +66,16 @@ function TextInformationFrame(id3Tag, value = "", identifier = "TTTT", encodingB
 }
 
 TextInformationFrame.prototype.loadFrom = function(buffer) {
-    ID3Frame.prototype.loadFrom.call(this, buffer);
-    this.encodingByte = this.body[0];
-    this.value = iconv.decode(this.body.slice(1), ID3Util.encodingByteToString(this.encodingByte));
-    return this;
+    return ID3Frame.prototype.loadFrom.call(this, buffer, [
+        {name: "encodingByte", func: ID3FrameReader.staticSize, args: [1], dataType: "number"},
+        {name: "value", func: ID3FrameReader.staticSize, dataType: "string", encoding: "encodingByte"}
+    ]);
 };
 
 TextInformationFrame.prototype.createBuffer = function() {
     this.body = Buffer.concat([
         Buffer.alloc(1, this.encodingByte),
-        iconv.encode(this.value, ID3Util.encodingByteToString(this.encodingByte))
+        ID3Util.stringToEncodedBuffer(this.value, this.encodingByte)
     ]);
     return ID3Frame.prototype.createBuffer.call(this);
 };
@@ -84,17 +88,11 @@ function UserDefinedTextFrame(id3Tag, value = {}, identifier = "TXXX", encodingB
 }
 
 UserDefinedTextFrame.prototype.loadFrom = function(buffer) {
-    ID3Frame.prototype.loadFrom.call(this, buffer);
-    this.encodingByte = this.body[0];
-    let values = ID3Util.splitNullTerminatedBuffer(this.body.slice(1), this.encodingByte);
-    this.value = {};
-    if(values.length > 0) {
-        this.value.description = ID3Util.bufferToDecodedString(values[0], this.encodingByte);
-    }
-    if(values.length > 1) {
-        this.value.value = ID3Util.bufferToDecodedString(values[1], this.encodingByte);
-    }
-    return this;
+    return ID3Frame.prototype.loadFrom.call(this, buffer, [
+        {name: "encodingByte", func: ID3FrameReader.staticSize, args: [1], dataType: "number"},
+        {name: "value.description", func: ID3FrameReader.nullTerminated, dataType: "string", encoding: "encodingByte"},
+        {name: "value.value", func: ID3FrameReader.staticSize, dataType: "string", encoding: "encodingByte"}
+    ]);
 };
 
 UserDefinedTextFrame.prototype.createBuffer = function() {
@@ -102,6 +100,42 @@ UserDefinedTextFrame.prototype.createBuffer = function() {
         Buffer.alloc(1, this.encodingByte),
         Buffer.from(ID3Util.stringToTerminatedBuffer(this.value.description || "", this.encodingByte)),
         ID3Util.stringToEncodedBuffer(this.value.value || "", this.encodingByte)
+    ]);
+    return ID3Frame.prototype.createBuffer.call(this);
+};
+
+module.exports.AttachedPictureFrame = AttachedPictureFrame;
+
+function AttachedPictureFrame(id3Tag, value = {}, identifier = "APIC", encodingByte = 0x01) {
+    ID3Frame.call(this, id3Tag, value, identifier);
+    this.encodingByte = encodingByte;
+}
+
+AttachedPictureFrame.prototype.loadFrom = function(buffer) {
+    ID3Frame.prototype.loadFrom.call(this, buffer, [
+        {name: "encodingByte", func: ID3FrameReader.staticSize, args: [1], dataType: "number"},
+        {name: "value.mime", func: ID3FrameReader.nullTerminated, dataType: "string"},
+        {name: "value.type.id", func: ID3FrameReader.staticSize, args: [1], dataType: "number"},
+        {name: "value.description", func: ID3FrameReader.nullTerminated, dataType: "string", encoding: "encodingByte"},
+        {name: "value.imageBuffer", func: ID3FrameReader.staticSize}
+    ]);
+
+    if(this.value.type && this.value.type.id) {
+        this.value.type.name = ID3Util.pictureTypeByteToName(this.value.type.id);
+    }
+    if(this.value.mime) {
+        this.value.mime = ID3Util.pictureMimeParser(this.value.mime);
+    }
+    return this;
+};
+
+AttachedPictureFrame.prototype.createBuffer = function() {
+    this.body = Buffer.concat([
+        Buffer.alloc(1, this.encodingByte),
+        Buffer.from(ID3Util.stringToTerminatedBuffer(ID3Util.pictureMimeWriter(this.value.mime) || "")),
+        Buffer.alloc(1, this.value.type.id || 0x00),
+        Buffer.from(ID3Util.stringToTerminatedBuffer(this.value.description || "", this.encodingByte)),
+        this.value.imageBuffer
     ]);
     return ID3Frame.prototype.createBuffer.call(this);
 };

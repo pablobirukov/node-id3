@@ -34,7 +34,7 @@ describe('NodeID3', function () {
             assert.ok(buffer.includes(
                 Buffer.concat([
                     Buffer.from([0x54, 0x49, 0x54, 0x32]),
-                    ID3Util.decodeSize(ID3Util.encodeSize(titleSize - 10)),
+                    ID3Util.sizeToBuffer(titleSize - 10),
                     Buffer.from([0x00, 0x00]),
                     Buffer.from([0x01]),
                     iconv.encode(tags.TIT2, ID3Util.encodingByteToString(0x01))
@@ -44,7 +44,7 @@ describe('NodeID3', function () {
             assert.ok(buffer.includes(
                 Buffer.concat([
                     Buffer.from([0x54, 0x41, 0x4C, 0x42]),
-                    ID3Util.decodeSize(ID3Util.encodeSize(albumSize - 10)),
+                    ID3Util.sizeToBuffer(albumSize - 10),
                     Buffer.from([0x00, 0x00]),
                     Buffer.from([0x01]),
                     iconv.encode(tags.album, ID3Util.encodingByteToString(0x01))
@@ -66,7 +66,7 @@ describe('NodeID3', function () {
                 buffer,
                 Buffer.concat([
                     Buffer.from([0x54, 0x58, 0x58, 0x58]),
-                    ID3Util.decodeSize(ID3Util.encodeSize(1 + descEncoded.length + valueEncoded.length)),
+                    ID3Util.sizeToBuffer(1 + descEncoded.length + valueEncoded.length),
                     Buffer.from([0x00, 0x00]),
                     Buffer.from([0x01]),
                     descEncoded,
@@ -93,18 +93,34 @@ describe('NodeID3', function () {
                 buffer,
                 Buffer.concat([
                     Buffer.from([0x54, 0x58, 0x58, 0x58]),
-                    ID3Util.decodeSize(ID3Util.encodeSize(1 + desc1Encoded.length + value1Encoded.length)),
+                    ID3Util.sizeToBuffer(1 + desc1Encoded.length + value1Encoded.length),
                     Buffer.from([0x00, 0x00]),
                     Buffer.from([0x01]),
                     desc1Encoded,
                     value1Encoded,
                     Buffer.from([0x54, 0x58, 0x58, 0x58]),
-                    ID3Util.decodeSize(ID3Util.encodeSize(1 + desc2Encoded.length + value2Encoded.length)),
+                    ID3Util.sizeToBuffer(1 + desc2Encoded.length + value2Encoded.length),
                     Buffer.from([0x00, 0x00]),
                     Buffer.from([0x01]),
                     desc2Encoded,
                     value2Encoded
                 ])
+            ), 0);
+        });
+
+        it('create APIC frame', function() {
+            let tags = {
+                picture: {
+                    description: "asdf",
+                    imageBuffer: Buffer.from('[0x61, 0x62, 0x63, 0x64]'),
+                    mime: "jpeg",
+                    type: {id: 3, name: "front cover"}
+                }
+            };
+
+            assert.equal(Buffer.compare(
+                NodeID3.create(tags),
+                Buffer.from('4944330300000000003B4150494300000031000001696D6167652F6A7065670003FFFE610073006400660000005B307836312C20307836322C20307836332C20307836345D', 'hex')
             ), 0);
         });
     });
@@ -261,6 +277,28 @@ describe('NodeID3', function () {
                         TXXX: tags.userDefinedText
                     }
                 }
+            );
+        });
+
+        it('read APIC frame', function() {
+            let withAll = Buffer.from("4944330300000000101C4150494300000016000000696D6167652F6A7065670003617364660061626364", "hex");
+            let noDesc = Buffer.from("494433030000000000264150494300000012000000696D6167652F6A70656700030061626364", "hex");
+            let obj = {
+                description: "asdf",
+                imageBuffer: Buffer.from([0x61, 0x62, 0x63, 0x64]),
+                mime: "jpeg",
+                type: { id: 3, name: "front cover" }
+            };
+
+            assert.deepEqual(
+                NodeID3.read(withAll).picture,
+                obj
+            );
+
+            obj.description = undefined;
+            assert.deepEqual(
+                NodeID3.read(noDesc).picture,
+                obj
             );
         });
     });
