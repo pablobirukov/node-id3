@@ -137,6 +137,11 @@ const SFrames = {
         read: "readChapterFrame",
         name: "CHAP",
         multiple: true
+    },
+    tableOfContens: {
+        create: "createTableOfContentsFrame",
+        read: "readTableOfContentsFrame",
+        name: "CTOC"
     }
 }
 
@@ -176,6 +181,84 @@ const APICTypes = [
 ]
 
 function NodeID3() {
+}
+
+/**
+ * https://id3.org/id3v2-chapters-1.0
+ */
+const CTOCFlags = {
+    topLevel: 1 << 1,   // 0b000000x0
+    ordered: 1 << 0,    // 0b0000000x
+}
+
+/**
+ * @typedef TOCChapter
+ * @property {string} elementID
+ */
+
+NodeID3.prototype.readTableOfContentsFrame = function (/**@type Buffer */ frame) {
+    const tags = {};
+
+    const endOfElementIDString = frame.indexOf(0x00);
+    tags.elementID = iconv.decode(frame.slice(0, endOfElementIDString), "ISO-8859-1");
+    const flags = frame.readUInt8(endOfElementIDString + 1);
+    tags.flags = {
+        topLevel: !!(CTOCFlags.topLevel & flags),
+        ordered: !!(CTOCFlags.ordered & flags),
+    };
+    tags.numberOfElements = frame.readUInt8(endOfElementIDString + 2);
+    let bytesRead = endOfElementIDString + 3;
+    let endOfChapterIdString = -1;
+    while ((endOfChapterIdString = frame.indexOf(0x00, bytesRead)) !== -1) {
+        if (!tags.chapters) {
+            tags.chapters = [];
+        }
+        tags.chapters.push({
+            elementId: iconv.decode(frame.slice(bytesRead, endOfChapterIdString), "ISO-8859-1"),
+        })
+        bytesRead = endOfChapterIdString + 1;
+    }
+    if (tags.numberOfElements !== tags.chapters.length) {
+        throw new Error(`Declared entry count (${tags.numberOfElements}) doesn't match the actual (${tags.chapters.length})`);
+    }
+    return tags;
+}
+
+/**
+ * @typedef TableOfContens
+ * @property {string} elementID
+ * @property {CTOCFlags} [flags]
+ * @property {TOCChapter[]} [chapters]
+ */
+/**
+ * @returns {Buffer}
+ */
+NodeID3.prototype.createTableOfContentsFrame = function (/**@type TableOfContens */ tableOfContens) {
+    if (!tableOfContens || !tableOfContens.elementID) {
+        return null;
+    }
+
+    const id3Header = Buffer.alloc(10, 0);
+    id3Header.write("CTOC");
+
+    const elementIDBuffer = Buffer.from(tableOfContens.elementID + "\0");
+    /** @type CTOCFlags */
+    const flags = {
+        ordered: (typeof (tableOfContens.flags || {}).ordered !== "undefined" && tableOfContens.flags.ordered) ? CTOCFlags.ordered : 0,
+        topLevel: (typeof (tableOfContens.flags || {}).topLevel !== "undefined" && tableOfContens.flags.topLevel) ? CTOCFlags.topLevel : 0,
+    };
+    const chapters = tableOfContens.chapters || [];
+    const flagsBuffer = Buffer.from([flags.ordered | flags.topLevel]);
+    // const entryCountBuffer = Buffer.from([chapters.length]);
+
+    let chaptersBuffer = Buffer.from([]);
+
+    for (const chapter of chapters) {
+        chaptersBuffer = Buffer.concat([chaptersBuffer, Buffer.from(chapter.elementID + "\0")]);
+    }
+    const frameWithoutHeader = Buffer.concat([elementIDBuffer, flagsBuffer, Buffer.from([chapters.length]), chaptersBuffer]);
+    id3Header.writeUInt32BE(frameWithoutHeader.length, 4);
+    return Buffer.concat([id3Header, frameWithoutHeader]);
 }
 
 /*
@@ -353,7 +436,7 @@ NodeID3.prototype.update = function (tags, filebuffer, fn) {
         //  update current tags with new or keep them
         Object.keys(rawTags).map(function (tag) {
             if (SFrames[SRawToNameMap[tag]] && SFrames[SRawToNameMap[tag]].multiple && currentTags[tag] && rawTags[tag]) {
-                cCompare = {}
+                const cCompare = {}
                 currentTags[tag].forEach((cTag, index) => {
                     cCompare[cTag[SFrames[SRawToNameMap[tag]].updateCompareKey]] = index
                 })
@@ -381,7 +464,7 @@ NodeID3.prototype.update = function (tags, filebuffer, fn) {
             //  update current tags with new or keep them
             Object.keys(rawTags).map(function (tag) {
                 if (SFrames[SRawToNameMap[tag]] && SFrames[SRawToNameMap[tag]].multiple && currentTags[tag] && rawTags[tag]) {
-                    cCompare = {}
+                    const cCompare = {}
                     currentTags[tag].forEach((cTag, index) => {
                         cCompare[cTag[SFrames[SRawToNameMap[tag]].updateCompareKey]] = index
                     })
