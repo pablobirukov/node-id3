@@ -139,7 +139,7 @@ const SFrames = {
         multiple: true
     },
     tableOfContens: {
-        // create: "createTableOfContentsFrame",
+        create: "createTableOfContentsFrame",
         read: "readTableOfContentsFrame",
         name: "CTOC"
     }
@@ -191,6 +191,11 @@ const CTOCFlags = {
     ordered: 1 << 0,    // 0b0000000x
 }
 
+/**
+ * @typedef TOCChapter
+ * @property {string} elementID
+ */
+
 NodeID3.prototype.readTableOfContentsFrame = function (/**@type Buffer */ frame) {
     const tags = {};
 
@@ -217,6 +222,43 @@ NodeID3.prototype.readTableOfContentsFrame = function (/**@type Buffer */ frame)
         throw new Error(`Declared entry count (${tags.numberOfElements}) doesn't match the actual (${tags.chapters.length})`);
     }
     return tags;
+}
+
+/**
+ * @typedef TableOfContens
+ * @property {string} elementID
+ * @property {CTOCFlags} [flags]
+ * @property {TOCChapter[]} [chapters]
+ */
+/**
+ * @returns {Buffer}
+ */
+NodeID3.prototype.createTableOfContentsFrame = function (/**@type TableOfContens */ tableOfContens) {
+    if (!tableOfContens || !tableOfContens.elementID) {
+        return null;
+    }
+
+    const id3Header = Buffer.alloc(10, 0);
+    id3Header.write("CTOC");
+
+    const elementIDBuffer = Buffer.from(tableOfContens.elementID + "\0");
+    /** @type CTOCFlags */
+    const flags = {
+        ordered: (typeof (tableOfContens.flags || {}).ordered !== "undefined" && tableOfContens.flags.ordered) ? CTOCFlags.ordered : 0,
+        topLevel: (typeof (tableOfContens.flags || {}).topLevel !== "undefined" && tableOfContens.flags.topLevel) ? CTOCFlags.topLevel : 0,
+    };
+    const chapters = tableOfContens.chapters || [];
+    const flagsBuffer = Buffer.from([flags.ordered | flags.topLevel]);
+    // const entryCountBuffer = Buffer.from([chapters.length]);
+
+    let chaptersBuffer = Buffer.from([]);
+
+    for (const chapter of chapters) {
+        chaptersBuffer = Buffer.concat([chaptersBuffer, Buffer.from(chapter.elementID + "\0")]);
+    }
+    const frameWithoutHeader = Buffer.concat([elementIDBuffer, flagsBuffer, Buffer.from([chapters.length]), chaptersBuffer]);
+    id3Header.writeUInt32BE(frameWithoutHeader.length, 4);
+    return Buffer.concat([id3Header, frameWithoutHeader]);
 }
 
 /*
