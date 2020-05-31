@@ -271,7 +271,7 @@ declare module "node-id3" {
             },
             description: string,
             imageBuffer: Buffer,
-         },
+         } | string,
          popularimeter?: {
             email: string,
             /**
