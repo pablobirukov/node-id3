@@ -293,6 +293,17 @@ declare module "node-id3" {
                title?: string;
             };
          }>;
+         tableOfContens?: {
+            elementID: string;
+            numberOfElements: number;
+            flags?: {
+               topLevel: boolean;
+               ordered: boolean;
+            };
+            chapters?: Array<{
+               elementID: string;
+            }>;
+         };
       }
       export function write(tags: Tags, filebuffer: Buffer): Buffer
       export function write(tags: Tags, filebuffer: Buffer, fun: (err: null, buffer: Buffer) => void): void
@@ -300,7 +311,8 @@ declare module "node-id3" {
       export function write(tags: Tags, filepath: string, fn: (err: NodeJS.ErrnoException | Error | null) => void): void
       export function create(tags: Tags): Buffer
       export function create(tags: Tags, fn: (buffer: Buffer) => void): void
-      export function read(filebuffer: string | Buffer): Tags
+      export function read(filebuffer: Buffer): Tags
+      export function read(filepath: string): Tags
       export function read(filebuffer: string | Buffer, fn: (err: NodeJS.ErrnoException | null, tags: Tags | null) => void): void
       export function update(tags: Tags, filebuffer: Buffer): Buffer
       export function update(tags: Tags, filepath: string): true | Error

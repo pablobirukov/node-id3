@@ -197,6 +197,7 @@ const CTOCFlags = {
  */
 
 NodeID3.prototype.readTableOfContentsFrame = function (/**@type Buffer */ frame) {
+    /** @type TableOfContens */
     const tags = {};
 
     const endOfElementIDString = frame.indexOf(0x00);
@@ -214,7 +215,7 @@ NodeID3.prototype.readTableOfContentsFrame = function (/**@type Buffer */ frame)
             tags.chapters = [];
         }
         tags.chapters.push({
-            elementId: iconv.decode(frame.slice(bytesRead, endOfChapterIdString), "ISO-8859-1"),
+            elementID: iconv.decode(frame.slice(bytesRead, endOfChapterIdString), "ISO-8859-1"),
         })
         bytesRead = endOfChapterIdString + 1;
     }
@@ -227,7 +228,8 @@ NodeID3.prototype.readTableOfContentsFrame = function (/**@type Buffer */ frame)
 /**
  * @typedef TableOfContens
  * @property {string} elementID
- * @property {CTOCFlags} [flags]
+ * @property {{topLevel: boolean; ordered: boolean; }} [flags]
+ * @property {number} numberOfElements
  * @property {TOCChapter[]} [chapters]
  */
 /**
